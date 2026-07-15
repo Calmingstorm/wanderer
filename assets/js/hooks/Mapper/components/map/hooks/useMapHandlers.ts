@@ -16,11 +16,13 @@ import {
   CommandSelectSystems,
   CommandUpdateConnection,
   CommandUpdateSystems,
+  CommandUserPermissions,
   MapHandlers,
 } from '@/hooks/Mapper/types/mapHandlers.ts';
 import { ForwardedRef, useImperativeHandle, useRef } from 'react';
 
 import { OnMapSelectionChange } from '@/hooks/Mapper/components/map/map.types.ts';
+import { useMapState } from '@/hooks/Mapper/components/map/MapProvider.tsx';
 import {
   useCenterSystem,
   useCommandsCharacters,
@@ -35,6 +37,7 @@ import {
 
 export const useMapHandlers = (ref: ForwardedRef<MapHandlers>, onSelectionChange: OnMapSelectionChange) => {
   const mapInit = useMapInit();
+  const { update } = useMapState();
   const mapAddSystems = useMapAddSystems();
   const mapUpdateSystems = useMapUpdateSystems();
   const removeSystems = useMapRemoveSystems(onSelectionChange);
@@ -125,6 +128,9 @@ export const useMapHandlers = (ref: ForwardedRef<MapHandlers>, onSelectionChange
             case Commands.updateTracking:
             case Commands.userSettingsUpdated:
               // do nothing
+              break;
+            case Commands.userPermissions:
+              update({ userPermissions: data as CommandUserPermissions });
               break;
 
             default:
