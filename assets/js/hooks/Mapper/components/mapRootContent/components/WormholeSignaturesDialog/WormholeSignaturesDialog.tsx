@@ -80,7 +80,12 @@ export const WormholeSignaturesDialog = ({ visible, onHide }: WormholeSignatures
     if (!q) return wormholes;
 
     return wormholes.filter(w => {
-      const destInfo = WORMHOLES_ADDITIONAL_INFO[w.dest];
+      const destinationLabels = w.dest
+        .map(destination => {
+          const info = WORMHOLES_ADDITIONAL_INFO[destination];
+          return info ? `${info.title} ${info.shortName}`.trim() : destination;
+        })
+        .join(' ');
       const spawnsLabels = w.src
         .map(s => {
           const group = s.split('-')[0];
@@ -92,8 +97,7 @@ export const WormholeSignaturesDialog = ({ visible, onHide }: WormholeSignatures
 
       return [
         w.name,
-        destInfo?.title,
-        destInfo?.shortName,
+        destinationLabels,
         spawnsLabels,
         String(w.total_mass),
         String(w.max_mass_per_jump),

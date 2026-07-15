@@ -11,7 +11,8 @@ export const WormholeClassComp = ({ id }: WormholeClassComp) => {
   } = useMapState();
 
   const wormholeData = wormholesData[id];
-  const wormholeDataAdditional = WORMHOLES_ADDITIONAL_INFO[wormholeData.dest];
+  const wormholeDataAdditional =
+    wormholeData?.dest.length === 1 ? WORMHOLES_ADDITIONAL_INFO[wormholeData.dest[0]] : undefined;
 
   if (!wormholeData || !wormholeDataAdditional) {
     return null;

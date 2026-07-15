@@ -1,96 +1,75 @@
-const countdown = (secondsCount: number) => {
-  let minutes, seconds;
+import type { Hook } from 'phoenix_live_view';
 
-  const dateEnd = new Date().getTime() + secondsCount * 1000;
+const countdown = (secondsCount: number): void => {
+  const dateEnd = Date.now() + secondsCount * 1000;
 
-  const timer = setInterval(calculate, 1000);
+  const calculate = (): void => {
+    const timeRemaining = Math.floor((dateEnd - Date.now()) / 1000);
+    if (timeRemaining < 0) return;
 
-  function calculate() {
-    const dateStartDefault = new Date();
-    const dateStart = new Date(
-      dateStartDefault.getUTCFullYear(),
-      dateStartDefault.getUTCMonth(),
-      dateStartDefault.getUTCDate(),
-      dateStartDefault.getUTCHours(),
-      dateStartDefault.getUTCMinutes(),
-      dateStartDefault.getUTCSeconds(),
-    );
-    let timeRemaining = parseInt((dateEnd - dateStart.getTime()) / 1000);
+    const secondsElement = document.getElementById('version-update-seconds');
+    if (secondsElement) secondsElement.textContent = String(timeRemaining % 3600);
+  };
 
-    if (timeRemaining >= 0) {
-      timeRemaining = timeRemaining % 86400;
-      timeRemaining = timeRemaining % 3600;
-      minutes = parseInt(timeRemaining / 60);
-      timeRemaining = timeRemaining % 60;
-      seconds = parseInt(timeRemaining);
-
-      document.getElementById('version-update-seconds').innerHTML = minutes * 60 + seconds;
-    } else {
-      return;
-    }
-  }
+  calculate();
+  window.setInterval(calculate, 1000);
 };
 
 const LAST_VERSION_KEY = 'wandererLastVersion';
 
-const updateVerion = (newVersion: string) => {
+const updateVersion = (newVersion: string | undefined): void => {
+  if (!newVersion) return;
   localStorage.setItem(LAST_VERSION_KEY, newVersion);
-
   window.location.reload();
 };
 
-export default {
+interface NewVersionUpdateMethods {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
+type NewVersionUpdateHook = Hook<NewVersionUpdateMethods> & NewVersionUpdateMethods;
+
+const NewVersionUpdate: NewVersionUpdateHook = {
   mounted() {
-    const hook = this;
+    const refreshZone = this.el.querySelector<HTMLElement>('#refresh-area');
 
-    const refreshZone = hook.el.querySelector('#refresh-area');
-
-    const handleUpdate = function (e: Event) {
-      const hexBricks = hook.el.querySelectorAll('.hex-brick');
-
-      // Add a new class to each element
-      hexBricks.forEach(el => {
-        el.classList.add('hex-brick--active');
+    refreshZone?.addEventListener('click', () => {
+      this.el.querySelectorAll<HTMLElement>('.hex-brick').forEach(element => {
+        element.classList.add('hex-brick--active');
       });
+      updateVersion(this.el.dataset.version);
+    });
 
-      updateVerion(hook.el.dataset.version);
-    };
-
-    refreshZone.addEventListener('click', handleUpdate);
-    // refreshZone.addEventListener('mouseover', handleUpdate);
-
-    this.updated();
+    this.updated?.();
   },
 
   reconnected() {
-    this.updated();
+    this.updated?.();
   },
 
   updated() {
-    const hook = this;
     const activeVersion = this.getItem(LAST_VERSION_KEY);
-    const lastVersion = hook.el.dataset.version;
-    if (activeVersion === lastVersion) {
-      return;
-    }
-    const enabled = hook.el.dataset.enabled;
-    if (enabled === 'true') {
-      hook.el.classList.remove('hidden');
-      const autoRefreshTimeout = Math.floor(Math.random() * (150 - 75 + 1)) + 75;
+    const lastVersion = this.el.dataset.version;
+    if (!lastVersion || activeVersion === lastVersion) return;
+
+    if (this.el.dataset.enabled === 'true') {
+      this.el.classList.remove('hidden');
+      const autoRefreshTimeout = Math.floor(Math.random() * 76) + 75;
       countdown(autoRefreshTimeout);
-      setTimeout(() => {
-        updateVerion(hook.el.dataset.version);
-      }, autoRefreshTimeout * 1000);
+      window.setTimeout(() => updateVersion(lastVersion), autoRefreshTimeout * 1000);
     } else {
-      updateVerion(hook.el.dataset.version);
+      updateVersion(lastVersion);
     }
   },
 
-  getItem(key: string) {
+  getItem(key) {
     return localStorage.getItem(key);
   },
 
-  setItem(key: string, value: string) {
-    return localStorage.setItem(key, value);
+  setItem(key, value) {
+    localStorage.setItem(key, value);
   },
 };
+
+export default NewVersionUpdate;

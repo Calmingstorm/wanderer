@@ -1,27 +1,34 @@
-export default {
+import type { Hook, ViewHookInterface } from 'phoenix_live_view';
+
+interface PingState {
+  _nowMs: number;
+  ping(rtt: number | null): void;
+}
+
+type PingHook = Hook<PingState> & PingState;
+
+const Ping: PingHook = {
   _nowMs: Date.now(),
 
   mounted() {
-    const hook = this;
     this.handleEvent('pong', () => {
       const rtt = Date.now() - this._nowMs;
-      hook.el.dataset.tip = `ping: ${rtt}ms`;
-
-      setTimeout(() => {
-        hook.ping(rtt);
-      }, 1000 * 60);
+      this.el.dataset.tip = `ping: ${rtt}ms`;
+      window.setTimeout(() => this.ping(rtt), 60_000);
     });
     this.ping(null);
   },
+
   reconnected() {
     this.ping(null);
   },
-  disconnected() {
-    // this.el.dataset.tip = `ping: No connection`;
-    // this.el.classList.add('text-red-500');
-  },
-  ping(rtt) {
+
+  disconnected() {},
+
+  ping(this: PingState & ViewHookInterface, rtt) {
     this._nowMs = Date.now();
-    this.pushEvent('ping', { rtt: rtt });
+    this.pushEvent('ping', { rtt });
   },
 };
+
+export default Ping;
