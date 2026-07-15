@@ -1,7 +1,7 @@
 import { PrimeReactProvider } from 'primereact/api';
 import { ErrorBoundary } from 'react-error-boundary';
 
-import { MapHandlers } from '@/hooks/Mapper/types/mapHandlers.ts';
+import { Command, Commands, MapHandlers } from '@/hooks/Mapper/types/mapHandlers.ts';
 import { ErrorInfo, useCallback, useEffect, useRef } from 'react';
 import { ReactFlowProvider } from 'reactflow';
 import { useMapperHandlers } from './useMapperHandlers';
@@ -15,9 +15,27 @@ const ErrorFallback = () => {
   return <div className="!z-100 absolute w-screen h-screen bg-transparent"></div>;
 };
 
-export default function MapRoot({ hooks }) {
+const isCommand = (value: string): value is Command => Object.values(Commands).includes(value as Commands);
+
+export interface MapEventPayload {
+  type: string;
+  body: unknown;
+}
+
+export interface MapperHooks {
+  handleEvent: (event: string, handler: (payload: unknown) => void) => void;
+  pushEvent: (event: string, payload: unknown) => unknown;
+  pushEventAsync: <T = unknown>(event: string, payload: unknown) => Promise<T>;
+  onError: (error: Error, componentStack: string | null | undefined) => void;
+}
+
+interface MapRootProps {
+  hooks: MapperHooks;
+}
+
+export default function MapRoot({ hooks }: MapRootProps) {
   const providerRef = useRef<MapHandlers>(null);
-  const hooksRef = useRef<any>(hooks);
+  const hooksRef = useRef<MapperHooks>(hooks);
 
   const mapperHandlerRefs = useRef([providerRef]);
 
@@ -35,7 +53,18 @@ export default function MapRoot({ hooks }) {
       return;
     }
 
-    hooksRef.current.handleEvent('map_event', handleMapEvent);
+    hooksRef.current.handleEvent('map_event', payload => {
+      if (
+        typeof payload === 'object' &&
+        payload !== null &&
+        'type' in payload &&
+        typeof payload.type === 'string' &&
+        isCommand(payload.type) &&
+        'body' in payload
+      ) {
+        handleMapEvent({ type: payload.type, body: payload.body });
+      }
+    });
   }, []);
 
   return (
