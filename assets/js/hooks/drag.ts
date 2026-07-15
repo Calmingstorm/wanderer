@@ -1,15 +1,6 @@
 import { Droppable } from '@shopify/draggable';
 import type { Hook } from 'phoenix_live_view';
 
-interface DragStartEvent {
-  originalSource: HTMLElement;
-}
-
-interface DroppableEvent {
-  dropzone: HTMLElement;
-  cancel(): void;
-}
-
 const Drag: Hook = {
   mounted() {
     let lastDropzone: string | null = null;
@@ -27,19 +18,17 @@ const Drag: Hook = {
     });
 
     droppable.on('drag:start', event => {
-      const { originalSource } = event as unknown as DragStartEvent;
       lastDropzone = null;
-      droppableOrigin = originalSource;
+      droppableOrigin = event.originalSource;
     });
 
     droppable.on('droppable:dropped', event => {
-      const droppedEvent = event as unknown as DroppableEvent;
       const originDropzone = droppableOrigin?.parentElement?.dataset.dropzone;
-      const targetDropzone = droppedEvent.dropzone.dataset.dropzone;
+      const targetDropzone = event.dropzone.dataset.dropzone;
 
       if (originDropzone !== targetDropzone) {
         lastDropzone = targetDropzone ?? null;
-        droppedEvent.cancel();
+        event.cancel();
       }
     });
 
