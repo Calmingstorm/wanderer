@@ -69,7 +69,7 @@ export const useMapInit = () => {
         updateData.options = options;
       }
 
-      if (options) {
+      if (user_permissions !== undefined) {
         updateData.userPermissions = user_permissions;
       }
 

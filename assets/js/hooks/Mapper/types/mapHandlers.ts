@@ -44,6 +44,7 @@ export enum Commands {
   pingAdded = 'ping_added',
   pingCancelled = 'ping_cancelled',
   pingBlocked = 'ping_blocked',
+  userPermissions = 'user_permissions',
 }
 
 export type Command =
@@ -82,7 +83,8 @@ export type Command =
   | Commands.refreshTrackingData
   | Commands.pingAdded
   | Commands.pingCancelled
-  | Commands.pingBlocked;
+  | Commands.pingBlocked
+  | Commands.userPermissions;
 
 export type CommandInit = {
   systems: SolarSystemRawType[];
@@ -169,6 +171,7 @@ export type CommandUpdateTracking = {
 };
 export type CommandPingAdded = PingData[];
 export type CommandPingCancelled = Pick<PingData, 'type' | 'id'>;
+export type CommandUserPermissions = UserPermissions;
 export type CommandPingBlocked = {
   reason: string;
   message: string;
@@ -226,6 +229,7 @@ export interface CommandData {
   [Commands.pingAdded]: CommandPingAdded;
   [Commands.pingCancelled]: CommandPingCancelled;
   [Commands.pingBlocked]: CommandPingBlocked;
+  [Commands.userPermissions]: CommandUserPermissions;
 }
 
 export interface MapHandlers {
