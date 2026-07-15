@@ -1,6 +1,7 @@
 import { useMapRootState } from '@/hooks/Mapper/mapRootProvider';
 import { isWormholeSpace } from '@/hooks/Mapper/components/map/helpers/isWormholeSpace.ts';
 import { useMemo } from 'react';
+import { useMinuteClock } from '@/hooks/useMinuteClock';
 import { getSystemById, sortWHClasses } from '@/hooks/Mapper/helpers';
 import { InfoDrawer, MarkdownTextViewer, TimeAgo, WHClassView, WHEffectView } from '@/hooks/Mapper/components/ui-kit';
 import { getSystemStaticInfo } from '@/hooks/Mapper/mapRootProvider/hooks/useLoadSystemStatic';
@@ -40,6 +41,7 @@ export const SystemInfoContent = ({ systemId }: SystemInfoContentProps) => {
   const { system_class, region_name, constellation_name, statics, effect_name, effect_power } = systemStaticInfo || {};
   const isWH = isWormholeSpace(system_class);
   const sortedStatics = useMemo(() => sortWHClasses(wormholesData, statics), [wormholesData, statics]);
+  const now = useMinuteClock();
 
   const hasKillCoverage = Object.prototype.hasOwnProperty.call(detailedKills, systemId);
   const intel = useMemo(
@@ -52,8 +54,9 @@ export const SystemInfoContent = ({ systemId }: SystemInfoContentProps) => {
         characters,
         manualStatus: sys.status,
         hasKillCoverage,
+        now,
       }),
-    [characters, connections, detailedKills, hasKillCoverage, sys.status, systemId, systemSignatures],
+    [characters, connections, detailedKills, hasKillCoverage, now, sys.status, systemId, systemSignatures],
   );
 
   return (
