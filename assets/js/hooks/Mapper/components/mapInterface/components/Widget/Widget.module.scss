@@ -1,9 +1,27 @@
 .root {
-
+  overflow: hidden;
+  border: 1px solid var(--wd-border-panel, rgba(148, 163, 184, 0.2));
+  border-radius: 9px;
+  background: var(--wd-surface-panel, rgba(12, 18, 26, 0.94));
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.28);
+  color: var(--wd-text-secondary, #bdc6d4);
+  backdrop-filter: blur(12px);
 }
 
 .Header {
-  height: 28px;
-  min-height: 28px;
-  max-height: 28px;
+  align-items: center;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--wd-border-subtle, rgba(148, 163, 184, 0.16));
+  background: var(--wd-surface-raised, rgba(22, 29, 38, 0.82));
+  color: var(--wd-text-primary, #f1f5f9);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.Content {
+  min-height: 0;
+  background: rgba(8, 13, 19, 0.18);
 }

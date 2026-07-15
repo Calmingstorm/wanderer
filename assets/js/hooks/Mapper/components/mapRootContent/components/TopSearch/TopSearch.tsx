@@ -268,7 +268,7 @@ export const TopSearchSidebar = ({ show, onHide }: TopSearchSidebarProps) => {
 
   return (
     <Sidebar
-      className={clsx(classes.Sidebar, 'bg-neutral-900 !p-[0px] w-[500px]')}
+      className={clsx(classes.Sidebar, '!p-[0px] w-[500px] max-w-[calc(100vw-1rem)]')}
       visible={show}
       position="right"
       onShow={onShow}
@@ -299,7 +299,7 @@ export const TopSearchSidebar = ({ show, onHide }: TopSearchSidebarProps) => {
               ref={inputRef}
               autoComplete="off"
               value={searchVal}
-              placeholder="Type To Search"
+              placeholder="Search systems, aliases, or chain labels"
               onChange={e => setSearchVal(e.target.value)}
             />
           </IconField>

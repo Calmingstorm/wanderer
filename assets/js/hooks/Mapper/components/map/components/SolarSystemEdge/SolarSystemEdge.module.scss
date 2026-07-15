@@ -2,29 +2,29 @@
 
 .EdgePathBack {
   fill: none;
-  stroke: #80a5c5;
+  stroke: #6f8fa8;
   stroke-width: 3px;
 
   &.time1 {
-    stroke: #f11ab2;
+    stroke: #d18b66;
     stroke-width: 4px;
   }
 
   &.time4 {
-    stroke: #a654e3;
+    stroke: #b79a63;
     stroke-width: 4px;
   }
 
   &.TimeCrit {
-    stroke: #f11ab2;
+    stroke: #d18b66;
     stroke-width: 4px;
   }
 
   &.Hovered {
-    stroke: #b5c8d9;
+    stroke: #9db8cd;
 
     &.TimeCrit {
-      stroke: #ef7dce;
+      stroke: #dca485;
     }
   }
 
@@ -37,11 +37,11 @@
   }
 
   &.Gate {
-    stroke: #9aff40;
+    stroke: #7ea77b;
   }
 
   &.Bridge {
-    stroke: #9aff40;
+    stroke: #7ea77b;
 
     stroke-dasharray: 10 5;
     stroke-linecap: round;
@@ -50,27 +50,27 @@
 
 .EdgePathFront {
   fill: none;
-  stroke: #2c3844;
+  stroke: #1f2a35;
   stroke-width: 2px;
 
   &.MassVerge:not(&.Frigate) {
-    stroke: #af0000;
+    stroke: #b65353;
   }
 
   &.MassHalf:not(&.Frigate) {
-    stroke: #ffd700;
+    stroke: #c7a65c;
   }
 
   &.Frigate {
-    stroke: #d4f0ff;
+    stroke: #a8cadf;
   }
 
   &.Gate {
-    stroke: #1c1e15;
+    stroke: #1d2822;
   }
 
   &.Hovered {
-    stroke: #4e5d6c;
+    stroke: #53697b;
     stroke-width: 2px;
 
     &.MassVerge:not(&.Frigate) {
@@ -82,7 +82,7 @@
     }
 
     &.Frigate {
-      stroke: #d4f0ff;
+      stroke: #a8cadf;
     }
   }
 

@@ -20,7 +20,14 @@
 }
 
 body {
-  font-family: 'Shentox', 'Rogan', sans-serif !important;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif !important;
+  background: #080d13;
+  color: #bdc6d4;
   min-width: 400px; /* Suppose you want minimum width of 400px */
   width: auto !important; /* Firefox will set width as auto */
   width: 400px; /* As IE6 ignores !important it will set width as 400px; */
@@ -42,7 +49,47 @@ body > div:first-of-type {
 }
 
 .ccp-font {
-  font-family: 'Shentox', 'Rogan', sans-serif !important;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif !important;
+}
+
+#mapper {
+  --surface-a: #151d27;
+  --surface-b: #0f161f;
+  --surface-card: #151d27;
+  --surface-overlay: #151d27;
+  --surface-border: rgba(148, 163, 184, 0.18);
+  --surface-hover: rgba(148, 163, 184, 0.08);
+  --text-color: #f1f5f9;
+  --text-color-secondary: #8491a3;
+  --primary-color: #86bde6;
+  --primary-color-text: #081019;
+  --highlight-bg: #86bde6;
+  --highlight-text-color: #081019;
+  color-scheme: dark;
+}
+
+#mapper .btn {
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+#mapper .p-dialog,
+#mapper .p-sidebar,
+#mapper .p-menu {
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: #111923;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
+}
+
+#mapper .p-inputtext,
+#mapper .p-dropdown {
+  border-color: rgba(148, 163, 184, 0.22);
+  background: #0d141d;
 }
 
 .discount {
@@ -192,287 +239,71 @@ body > div:first-of-type {
   background: blue;
 }
 
-.Loader {
-  padding-top: 10px;
-  width: 150px;
-  height: 150px;
-}
-
-/* █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ █ */
+/* Map loading */
 .Loader {
   position: relative;
-  width: 150px;
-  width: 150px;
-  min-width: 110px;
-  overflow: visible;
+  display: grid;
+  place-items: center;
+  width: 168px;
+  height: 76px;
   margin: 20px;
-  border-radius: 50%;
-  box-shadow:
-    inset 0 0 8px rgba(255, 255, 255, 0.4),
-    0 0 25px rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  border: 1px solid var(--wd-border-panel, rgba(148, 163, 184, 0.2));
+  border-radius: 12px;
+  background: var(--wd-surface-panel, rgba(12, 18, 26, 0.96));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
 }
-.Loader::after {
-  content: attr(data-text);
-  color: #cecece;
-  color: #cecece;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  font-size: calc(70% + 0.1vw);
-  text-transform: uppercase;
-  letter-spacing: 5px;
-}
-.Loader {
-  /* Keep ratio on resize */
-}
+
 .Loader::before {
   content: '';
-  float: left;
-  padding-top: 100%;
-}
-.Loader__Circle {
-  display: block;
   position: absolute;
-  border-radius: 50%;
-  top: 0px;
-  right: 0px;
-  bottom: 0px;
-  left: 0px;
-  opacity: 0.8;
-  mix-blend-mode: screen;
-  filter: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg"><filter id="filter"><feComponentTransfer color-interpolation-filters="sRGB"><feFuncR type="linear" slope="1.2" /><feFuncG type="linear" slope="1.2" /><feFuncB type="linear" slope="1.2" /></feComponentTransfer></filter></svg>#filter');
-  filter: brightness(120%);
-  -webkit-animation-name: SpinAround;
-  animation-name: SpinAround;
-  -webkit-animation-iteration-count: infinite;
-  animation-iteration-count: infinite;
-  -webkit-animation-duration: 2s;
-  animation-duration: 2s;
-  -webkit-animation-fill-mode: both;
-  animation-fill-mode: both;
-  -webkit-animation-timing-function: linear;
-  animation-timing-function: linear;
+  left: 18px;
+  right: 18px;
+  bottom: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.16);
 }
-.Loader__Circle:nth-of-type(1) {
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    4px 0 0 4px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    4px 0 0 4px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    4px 0 0 3px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    4px 0 0 3px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    3px 0 0 4px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    3px 0 0 4px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    3px 0 0 3px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    3px 0 0 3px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    4px 0 0 4px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    4px 0 0 4px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    4px 0 0 3px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    4px 0 0 3px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    3px 0 0 4px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    3px 0 0 4px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    3px 0 0 3px #2979ff;
-  box-shadow:
-    inset 1px 0 0 1px #2979ff,
-    3px 0 0 3px #2979ff;
-  animation-direction: reverse;
-  transform-origin: 49.6% 49.8%;
+
+.Loader::after {
+  content: attr(data-text);
+  position: relative;
+  align-self: start;
+  margin-top: 17px;
+  color: var(--wd-text-secondary, #bdc6d4);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
-.Loader__Circle:nth-of-type(2) {
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    4px 0px 0 4px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    4px 0px 0 4px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    4px 0px 0 3px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    4px 0px 0 3px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    3px 0px 0 4px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    3px 0px 0 4px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    3px 0px 0 3px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    3px 0px 0 3px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    4px 0px 0 4px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    4px 0px 0 4px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    4px 0px 0 3px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    4px 0px 0 3px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    3px 0px 0 4px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    3px 0px 0 4px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    3px 0px 0 3px #ff1744;
-  box-shadow:
-    inset 1px 0 0 1px #ff1744,
-    3px 0px 0 3px #ff1744;
-  transform-origin: 49.5% 49.8%;
+
+.Loader__Circle {
+  position: absolute;
+  left: 18px;
+  bottom: 16px;
+  width: 42px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--wd-accent, #66a7d9);
+  animation: loader-progress 1.4s ease-in-out infinite;
 }
-.Loader__Circle:nth-of-type(3) {
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 4px 0 4px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 4px 0 4px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 4px 0 3px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 4px 0 3px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 3px 0 4px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 3px 0 4px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 3px 0 3px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 3px 0 3px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 4px 0 4px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 4px 0 4px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 4px 0 3px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 4px 0 3px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 3px 0 4px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 3px 0 4px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 3px 0 3px #ffff8d;
-  box-shadow:
-    inset 1px 0 0 1px #ffff8d,
-    0 3px 0 3px #ffff8d;
-  transform-origin: 49.8% 49.8%;
+
+.Loader__Circle:nth-of-type(n + 2) {
+  display: none;
 }
-.Loader__Circle:nth-of-type(4) {
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 4px 0 4px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 4px 0 4px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 4px 0 3px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 4px 0 3px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 3px 0 4px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 3px 0 4px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 3px 0 3px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 3px 0 3px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 4px 0 4px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 4px 0 4px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 4px 0 3px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 4px 0 3px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 3px 0 4px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 3px 0 4px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 3px 0 3px #b2ff59;
-  box-shadow:
-    inset 1px 0 0 1px #b2ff59,
-    0 3px 0 3px #b2ff59;
-  transform-origin: 49.7% 49.7%;
-}
-@-webkit-keyframes SpinAround {
+
+@keyframes loader-progress {
   0% {
-    transform: rotate(0);
+    transform: translateX(0);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateX(72px);
+    opacity: 1;
   }
   100% {
-    transform: rotate(-360deg);
-  }
-}
-@keyframes SpinAround {
-  0% {
-    transform: rotate(0);
-  }
-  100% {
-    transform: rotate(-360deg);
+    transform: translateX(0);
+    opacity: 0.45;
   }
 }
 
@@ -1095,7 +926,7 @@ body > div:first-of-type {
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3) !important;
 }
 
-.ql-tooltip input[type="text"] {
+.ql-tooltip input[type='text'] {
   background-color: #0c0a09;
   border-color: #44403c;
   color: #e7e5e4;
