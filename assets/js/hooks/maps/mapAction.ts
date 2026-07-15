@@ -1,15 +1,20 @@
-export default {
+import type { Hook } from 'phoenix_live_view';
+
+const MapAction: Hook = {
   mounted() {
-    const hook = this;
-    this.el.addEventListener('click', e => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (hook.el.dataset.confirm) {
-        if (!confirm(hook.el.dataset.confirm)) {
-          return;
-        }
+    this.el.addEventListener('click', event => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const confirmation = this.el.dataset.confirm;
+      if (confirmation && !window.confirm(confirmation)) return;
+
+      const eventName = this.el.dataset.event;
+      if (eventName) {
+        this.pushEvent(eventName, { data: this.el.dataset.data });
       }
-      this.pushEvent(hook.el.dataset.event, { data: hook.el.dataset.data });
     });
   },
 };
+
+export default MapAction;

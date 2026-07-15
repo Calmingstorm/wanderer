@@ -12,7 +12,7 @@ import {
 import { WidgetsSettings } from './components/WidgetsSettings';
 import { CommonSettings } from './components/CommonSettings';
 import { BookmarksSettings } from './components/BookmarksSettings';
-import { SettingsListItem } from './types.ts';
+import { SettingsListItem, UserSettingsRemote } from './types.ts';
 import { ImportExport } from './components/ImportExport.tsx';
 import { ServerSettings } from './components/ServerSettings.tsx';
 import { AdminSettings } from './components/AdminSettings.tsx';
@@ -27,16 +27,14 @@ export const MapSettingsComp = ({ visible, onHide }: MapSettingsProps) => {
   const [activeIndex, setActiveIndex] = useState(0);
   const { outCommand } = useMapRootState();
 
-  const { renderSettingItem, setUserRemoteSettings, settings } = useMapSettings();
+  const { renderSettingItem, setUserRemoteSettings } = useMapSettings();
   const isAdmin = useMapCheckPermissions([UserPermission.ADMIN_MAP]);
 
   const refVars = useRef({ outCommand, onHide, visible });
   refVars.current = { outCommand, onHide, visible };
 
   const handleShow = useCallback(async () => {
-    // TODO: need fix it - add type?
-    // @ts-ignore
-    const { user_settings } = await refVars.current.outCommand({
+    const { user_settings } = await refVars.current.outCommand<{ user_settings: UserSettingsRemote }>({
       type: OutCommand.getUserSettings,
       data: null,
     });

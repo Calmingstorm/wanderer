@@ -1,11 +1,21 @@
 import { Droppable } from '@shopify/draggable';
+import type { Hook } from 'phoenix_live_view';
 
-export default {
+interface DragStartEvent {
+  originalSource: HTMLElement;
+}
+
+interface DroppableEvent {
+  dropzone: HTMLElement;
+  cancel(): void;
+}
+
+const Drag: Hook = {
   mounted() {
-    let lastDropzone = null;
-    const hook = this;
-    const containers = document.querySelectorAll('.dropzone');
-    const selector = '#' + this.el.id;
+    let lastDropzone: string | null = null;
+    let droppableOrigin: HTMLElement | null = null;
+    const containers = document.querySelectorAll<HTMLElement>('.dropzone');
+    const selector = `#${this.el.id}`;
 
     const droppable = new Droppable(containers, {
       delay: 100,
@@ -16,26 +26,32 @@ export default {
       },
     });
 
-    let droppableOrigin;
-
-    // --- Draggable events --- //
-    droppable.on('drag:start', evt => {
+    droppable.on('drag:start', event => {
+      const { originalSource } = event as unknown as DragStartEvent;
       lastDropzone = null;
-      droppableOrigin = evt.originalSource;
+      droppableOrigin = originalSource;
     });
 
-    droppable.on('droppable:dropped', evt => {
-      if (droppableOrigin.parentNode.dataset.dropzone !== evt.dropzone.dataset.dropzone) {
-        lastDropzone = evt.dropzone.dataset.dropzone;
-        evt.cancel();
+    droppable.on('droppable:dropped', event => {
+      const droppedEvent = event as unknown as DroppableEvent;
+      const originDropzone = droppableOrigin?.parentElement?.dataset.dropzone;
+      const targetDropzone = droppedEvent.dropzone.dataset.dropzone;
+
+      if (originDropzone !== targetDropzone) {
+        lastDropzone = targetDropzone ?? null;
+        droppedEvent.cancel();
       }
     });
 
-    droppable.on('droppable:stop', evt => {
-      if (!lastDropzone) {
-        return;
-      }
-      hook.pushEventTo(selector, 'dropped', { draggedId: droppableOrigin.id, dropzoneId: lastDropzone });
+    droppable.on('droppable:stop', () => {
+      if (!lastDropzone || !droppableOrigin) return;
+
+      this.pushEventTo(selector, 'dropped', {
+        draggedId: droppableOrigin.id,
+        dropzoneId: lastDropzone,
+      });
     });
   },
 };
+
+export default Drag;

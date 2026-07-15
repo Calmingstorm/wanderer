@@ -1,20 +1,22 @@
-export default {
+import type { Hook } from 'phoenix_live_view';
+
+const CopyToClipboard: Hook = {
   mounted() {
     const button = this.el;
 
-    button.addEventListener('click', function () {
-
+    button.addEventListener('click', () => {
       button.classList.remove('copied');
 
-      // Copy the URL to the clipboard
       navigator.clipboard
-        .writeText(button.dataset.url)
+        .writeText(button.dataset.url ?? '')
         .then(() => {
           button.classList.add('copied');
         })
-        .catch(err => {
-          console.error('Failed to copy URL:', err);
+        .catch((error: unknown) => {
+          console.error('Failed to copy URL:', error);
         });
     });
   },
 };
+
+export default CopyToClipboard;
