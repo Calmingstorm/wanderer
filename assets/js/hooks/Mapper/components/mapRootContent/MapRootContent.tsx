@@ -55,15 +55,15 @@ export const MapRootContent = ({}: MapRootContentProps) => {
   useSkipContextMenu();
 
   return (
-    <div className={themeClass}>
+    <div className={`${themeClass} pilot-command-ui`}>
       <Layout map={<MapWrapper />}>
         {!isShowMenu ? (
-          <div className="absolute top-0 left-14 w-[calc(100%-3.5rem)] h-[calc(100%-3.5rem)] pointer-events-none">
+          <div className="absolute top-0 left-14 w-[calc(100%-3.5rem)] h-full pointer-events-none">
             <div className="absolute top-0 left-0 w-[calc(100%-3.5rem)] h-full pointer-events-none">
               <Topbar />
               {mapInterface}
             </div>
-            <div className="absolute top-0 right-0 w-14 h-[calc(100%+3.5rem)] pointer-events-auto">
+            <div className="absolute top-0 right-0 w-14 h-full pointer-events-auto">
               <RightBar
                 onShowOnTheMap={handleShowOnTheMap}
                 onShowMapSettings={handleShowMapSettings}
@@ -74,7 +74,7 @@ export const MapRootContent = ({}: MapRootContentProps) => {
             </div>
           </div>
         ) : (
-          <div className="absolute top-0 left-14 w-[calc(100%-3.5rem)] h-[calc(100%-3.5rem)] pointer-events-none">
+          <div className="absolute top-0 left-14 w-[calc(100%-3.5rem)] h-full pointer-events-none">
             <Topbar>
               <div className="flex items-center ml-1">
                 <TopSearch />
