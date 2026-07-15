@@ -50,7 +50,7 @@ export const RightBar = ({
       className={clsx(
         classes.RightBarRoot,
         'w-full h-full',
-        'text-gray-200 shadow-lg border-l border-zinc-800 border-opacity-70 bg-opacity-70 bg-neutral-900',
+        'text-gray-200',
         'flex flex-col items-center justify-between pt-1',
       )}
     >
