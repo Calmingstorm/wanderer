@@ -2,35 +2,45 @@
 @use './eve-common';
 
 .default-theme {
-  --rf-bg-color: #0C0A09;
-  --rf-soft-bg-color: #171717;
+  --wd-surface-canvas: #080d13;
+  --wd-surface-panel: rgba(12, 18, 26, 0.94);
+  --wd-surface-raised: rgba(22, 29, 38, 0.82);
+  --wd-border-subtle: rgba(148, 163, 184, 0.16);
+  --wd-border-panel: rgba(148, 163, 184, 0.2);
+  --wd-text-primary: #f1f5f9;
+  --wd-text-secondary: #bdc6d4;
+  --wd-text-muted: #8491a3;
+  --wd-accent: #66a7d9;
+  --wd-accent-strong: #86bde6;
 
-  --rf-node-bg-color: #202020;
-  --rf-node-soft-bg-color: #202020;
-  --rf-text-color: #ffffff;
-  --rf-tag-color:  #38BDF8;
-  --rf-region-name: #D6D3D1;
-  --rf-custom-name: #93C5FD;
-  --rf-node-font-family: 'Shentox', 'Rogan', sans-serif !important;
+  --rf-bg-color: var(--wd-surface-canvas);
+  --rf-soft-bg-color: #0d141d;
+
+  --rf-node-bg-color: #131b25;
+  --rf-node-soft-bg-color: #17212c;
+  --rf-text-color: var(--wd-text-primary);
+  --rf-tag-color: #8ebfe4;
+  --rf-region-name: #9ba8b8;
+  --rf-custom-name: #a8cae4;
+  --rf-node-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
   --rf-node-font-weight: 500;
 
-  --rf-bg-variant: "dots";
-  --rf-bg-gap: 15;
+  --rf-bg-variant: 'dots';
+  --rf-bg-gap: 22;
   --rf-bg-size: 1;
-  --rf-bg-pattern-color: #81818a;
+  --rf-bg-pattern-color: #283544;
 
-  --pastel-blue: #5a7d9a;
-  --pastel-pink: #d291bc;
-  --pastel-green: #88b04b;
-  --pastel-yellow: #ffdd59;
+  --pastel-blue: #698aa4;
+  --pastel-pink: #89b9dc;
+  --pastel-green: #77a878;
+  --pastel-yellow: #c7ae6b;
 
-  --dark-bg: #2d2d2d;
-  --text-color: #ffffff;
-  --tooltip-bg: #202020;
+  --dark-bg: #0d141d;
+  --text-color: var(--wd-text-primary);
+  --tooltip-bg: #111a24;
+  --window-corner: #526171;
 
-  --window-corner: #72716f;
-
-  --rf-local-counter-font-weight: 500;
-  --rf-node-local-counter: inherit;
-  --rf-has-user-characters: #ffc75d;
+  --rf-local-counter-font-weight: 600;
+  --rf-node-local-counter: #c6d0dc;
+  --rf-has-user-characters: #e4c47d;
 }

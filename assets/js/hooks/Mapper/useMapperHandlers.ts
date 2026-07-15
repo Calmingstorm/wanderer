@@ -1,15 +1,17 @@
 import usePageVisibility from '@/hooks/Mapper/hooks/usePageVisibility.ts';
 import debounce from 'lodash.debounce';
 
-import { MapHandlers } from '@/hooks/Mapper/types/mapHandlers.ts';
+import { Command, MapHandlers, OutCommandHandler } from '@/hooks/Mapper/types/mapHandlers.ts';
+import type { MapperHooks } from '@/hooks/Mapper/MapRoot.tsx';
 import { RefObject, useCallback, useEffect, useRef } from 'react';
 
 // const inIndex = 0;
 // const prevEventTime = +new Date();
 const LAST_VERSION_KEY = 'wandererLastVersion';
 
-// @ts-ignore
-export const useMapperHandlers = (handlerRefs: RefObject<MapHandlers>[], hooksRef: RefObject<any>) => {
+type MapEvent = { type: Command; body: unknown };
+
+export const useMapperHandlers = (handlerRefs: RefObject<MapHandlers>[], hooksRef: RefObject<MapperHooks>) => {
   const visible = usePageVisibility();
 
   const wasHiddenOnce = useRef(false);
@@ -37,11 +39,10 @@ export const useMapperHandlers = (handlerRefs: RefObject<MapHandlers>[], hooksRe
   //   recordBufferRef.current = [];
   // }, [record]);
 
-  const handleCommand = useCallback(
-    // @ts-ignore
-    async ({ type, data }) => {
+  const handleCommand: OutCommandHandler = useCallback(
+    async <T = unknown>({ type, data }: Parameters<OutCommandHandler>[0]): Promise<T> => {
       if (!hooksRef.current) {
-        return;
+        throw new Error('Mapper hook is unavailable');
       }
 
       // TODO - do not delete THIS code it needs for debug
@@ -51,13 +52,12 @@ export const useMapperHandlers = (handlerRefs: RefObject<MapHandlers>[], hooksRe
       // }
 
       // 'ui_loaded'
-      return await hooksRef.current.pushEventAsync(type, data);
+      return await hooksRef.current.pushEventAsync<T>(type, data);
     },
     [hooksRef.current],
   );
 
-  // @ts-ignore
-  const eventsBufferRef = useRef<{ type; body }[]>([]);
+  const eventsBufferRef = useRef<MapEvent[]>([]);
 
   const eventTick = useCallback(
     debounce(() => {
@@ -86,8 +86,7 @@ export const useMapperHandlers = (handlerRefs: RefObject<MapHandlers>[], hooksRe
   const eventTickRef = useRef(eventTick);
   eventTickRef.current = eventTick;
 
-  // @ts-ignore
-  const handleMapEvent = useCallback(({ type, body }) => {
+  const handleMapEvent = useCallback(({ type, body }: MapEvent) => {
     // TODO - do not delete THIS code it needs for debug
     // const currentTime = +new Date();
     // const timeDiff = currentTime - prevEventTime;
@@ -116,7 +115,7 @@ export const useMapperHandlers = (handlerRefs: RefObject<MapHandlers>[], hooksRe
       return;
     }
 
-    hooksRef.current.pushEventAsync('ui_loaded', { version: localStorage.getItem(LAST_VERSION_KEY) });
+    hooksRef.current?.pushEventAsync('ui_loaded', { version: localStorage.getItem(LAST_VERSION_KEY) });
   }, [hooksRef.current, visible]);
 
   return { handleCommand, handleMapEvent };

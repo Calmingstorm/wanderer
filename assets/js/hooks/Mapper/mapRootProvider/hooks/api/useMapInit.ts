@@ -67,7 +67,7 @@ export const useMapInit = () => {
         updateData.connections = connections;
       }
 
-      if (user_permissions) {
+      if (user_permissions !== undefined) {
         updateData.userPermissions = user_permissions;
       }
 

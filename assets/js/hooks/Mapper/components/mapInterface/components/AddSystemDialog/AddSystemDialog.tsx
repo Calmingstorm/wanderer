@@ -1,7 +1,7 @@
 import { SystemViewStandalone, WdButton, WHClassView, WHEffectView } from '@/hooks/Mapper/components/ui-kit';
 import { useMapRootState } from '@/hooks/Mapper/mapRootProvider';
 import { OutCommand, SearchSystemItem } from '@/hooks/Mapper/types';
-import { AutoComplete } from 'primereact/autocomplete';
+import { AutoComplete, AutoCompleteChangeEvent } from 'primereact/autocomplete';
 import { Dialog } from 'primereact/dialog';
 import { IconField } from 'primereact/iconfield';
 import { useCallback, useRef, useState } from 'react';
@@ -33,8 +33,7 @@ export const AddSystemDialog = ({
     data: { wormholesData },
   } = useMapRootState();
 
-  // TODO fix it
-  const inputRef = useRef<any>();
+  const inputRef = useRef<AutoComplete>(null);
   const onShow = useCallback(() => {
     inputRef.current?.focus();
   }, []);
@@ -55,15 +54,14 @@ export const AddSystemDialog = ({
         setFilteredItems([]);
       } else {
         try {
-          const result = await outCommand({
+          const result = await outCommand<{ systems: SearchSystemItem[] }>({
             type: OutCommand.searchSystems,
             data: {
               text: query,
             },
           });
 
-          // TODO fix it
-          let prepared = (result.systems as SearchSystemItem[]).sort((a, b) => {
+          let prepared = result.systems.sort((a, b) => {
             const amatch = a.label.indexOf(query);
             const bmatch = b.label.indexOf(query);
             return amatch - bmatch;
@@ -128,7 +126,7 @@ export const AddSystemDialog = ({
                   value={selectedItem}
                   suggestions={filteredItems}
                   completeMethod={searchItems}
-                  onChange={e => {
+                  onChange={(e: AutoCompleteChangeEvent) => {
                     setSelectedItem(e.value.length < 2 ? e.value : [e.value[e.value.length - 1]]);
                   }}
                   emptyMessage="Not found any system..."
