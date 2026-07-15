@@ -1,6 +1,6 @@
 import React, { createContext, useContext } from 'react';
 import { OutCommandHandler } from '@/hooks/Mapper/types/mapHandlers.ts';
-import { MapUnionTypes, SystemSignature } from '@/hooks/Mapper/types';
+import { MapUnionTypes, SystemSignature, UserPermission } from '@/hooks/Mapper/types';
 import { ContextStoreDataUpdate, useContextStore } from '@/hooks/Mapper/utils';
 
 export type MapData = MapUnionTypes & {
@@ -38,7 +38,16 @@ const INITIAL_DATA: MapData = {
   isThickConnections: false,
   userPermissions: {},
   systemSignatures: {} as Record<string, SystemSignature[]>,
-  options: {} as Record<string, string | boolean>,
+  options: {
+    allowed_copy_for: UserPermission.VIEW_SYSTEM,
+    allowed_paste_for: UserPermission.VIEW_SYSTEM,
+    layout: '',
+    restrict_offline_showing: 'false',
+    show_linked_signature_id: 'false',
+    show_linked_signature_id_temp_name: 'false',
+    show_temp_system_name: 'false',
+    store_custom_labels: 'false',
+  },
   isSubscriptionActive: false,
   mainCharacterEveId: null,
   followingCharacterEveId: null,
@@ -57,8 +66,9 @@ export interface MapContextProps {
 const MapContext = createContext<MapContextProps>({
   update: () => {},
   data: { ...INITIAL_DATA },
-  // @ts-ignore
-  outCommand: async () => void 0,
+  outCommand: async <T = unknown,>(): Promise<T> => {
+    throw new Error('MapProvider outCommand is unavailable');
+  },
 });
 
 export const MapProvider = ({ children, onCommand }: MapProviderProps) => {

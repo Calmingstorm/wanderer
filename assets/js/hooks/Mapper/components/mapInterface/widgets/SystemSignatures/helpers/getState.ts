@@ -1,7 +1,9 @@
 import { UNKNOWN_SIGNATURE_NAME } from '@/hooks/Mapper/helpers';
 import { SignatureGroup, SystemSignature } from '@/hooks/Mapper/types';
 
-export const getState = (_: string[], newSig: SystemSignature) => {
+export type SignatureStateInput = Partial<Pick<SystemSignature, 'group' | 'name'>>;
+
+export const getState = (_: string[], newSig: SignatureStateInput) => {
   let state = -1;
   if (!newSig.group || newSig.group === SignatureGroup.CosmicSignature) {
     state = 0;

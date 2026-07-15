@@ -15,8 +15,8 @@ import { WHClassView } from '@/hooks/Mapper/components/ui-kit';
 const getPossibleWormholes = (systemStatic: SolarSystemStaticInfoRaw, wormholes: WormholeDataRaw[]) => {
   const { id: whType } = WORMHOLES_ADDITIONAL_INFO_BY_CLASS_ID[systemStatic.system_class];
 
-  // @ts-ignore
-  const spawnClassGroup = SOLAR_SYSTEM_CLASSES_TO_CLASS_GROUPS[whType];
+  const classGroups: Readonly<Record<string, string>> = SOLAR_SYSTEM_CLASSES_TO_CLASS_GROUPS;
+  const spawnClassGroup = classGroups[whType];
   const possibleWHTypes = wormholes.filter(x => {
     return x.src.some(x => {
       const [group, type] = x.split('-');
@@ -38,8 +38,10 @@ const getPossibleWormholes = (systemStatic: SolarSystemStaticInfoRaw, wormholes:
   };
 };
 
-// @ts-ignore
-const renderWHTypeGroupTemplate = option => {
+type WormholeOption = { label: string; value: string; data: WormholeDataRaw };
+type WormholeOptionGroup = { label: string; items: WormholeOption[] };
+
+const renderWHTypeGroupTemplate = (option: WormholeOptionGroup) => {
   return (
     <div className="flex gap-2 items-center">
       <span>{option.label}</span>
@@ -47,8 +49,7 @@ const renderWHTypeGroupTemplate = option => {
   );
 };
 
-// @ts-ignore
-const renderWHTypeTemplateValue = (option: { label: string; data: WormholeDataRaw }) => {
+const renderWHTypeTemplateValue = (option?: WormholeOption) => {
   if (!option) {
     return 'Select wormhole type';
   }
@@ -60,8 +61,7 @@ const renderWHTypeTemplateValue = (option: { label: string; data: WormholeDataRa
   );
 };
 
-// @ts-ignore
-const renderWHTypeTemplate = (option: { label: string; data: WormholeDataRaw }) => {
+const renderWHTypeTemplate = (option: WormholeOption) => {
   return (
     <div className="flex gap-2 items-center ml-[1rem]">
       <WHClassView whClassName={option.data.name} noOffset useShortTitle />
@@ -88,6 +88,10 @@ export const SignatureWormholeTypeSelect = ({ name, defaultValue = '' }: Signatu
   const system = useSystemInfo({ systemId });
 
   const possibleWormholesOptions = useMemo(() => {
+    if (!system.staticInfo) {
+      return [];
+    }
+
     const possibleWormholes = getPossibleWormholes(system.staticInfo, wormholes);
 
     return [
