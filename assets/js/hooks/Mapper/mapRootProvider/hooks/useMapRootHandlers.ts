@@ -23,6 +23,7 @@ import {
   CommandTrackingCharactersData,
   CommandUpdateConnection,
   CommandUpdateSystems,
+  CommandUserPermissions,
   CommandUserSettingsUpdated,
   MapHandlers,
 } from '@/hooks/Mapper/types/mapHandlers.ts';
@@ -44,9 +45,11 @@ import {
 
 import { emitMapEvent } from '@/hooks/Mapper/events';
 import { DetailedKill } from '../../types/kills';
+import { useMapRootState } from '@/hooks/Mapper/mapRootProvider';
 import { useCommandsActivity } from './api/useCommandsActivity';
 
 export const useMapRootHandlers = (ref: ForwardedRef<MapHandlers>) => {
+  const { update } = useMapRootState();
   const mapInit = useMapInit();
   const {
     addSystems,
@@ -163,6 +166,10 @@ export const useMapRootHandlers = (ref: ForwardedRef<MapHandlers>) => {
 
           case Commands.userSettingsUpdated:
             userSettingsUpdated(data as CommandUserSettingsUpdated);
+            break;
+
+          case Commands.userPermissions:
+            update({ userPermissions: data as CommandUserPermissions });
             break;
 
           case Commands.systemCommentAdded:
