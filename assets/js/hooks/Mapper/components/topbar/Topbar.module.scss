@@ -1,0 +1,127 @@
+.Topbar {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(150px, auto) minmax(160px, 1fr) auto minmax(140px, auto);
+  align-items: center;
+  min-width: 0;
+  height: 54px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--wd-border-subtle, rgba(148, 163, 184, 0.16));
+  background: linear-gradient(180deg, rgba(17, 24, 33, 0.97), rgba(12, 18, 26, 0.94));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  color: var(--wd-text-primary, #f1f5f9);
+  backdrop-filter: blur(14px);
+}
+
+.ContextBlock,
+.SelectionBlock {
+  min-width: 0;
+}
+
+.ContextBlock {
+  padding-right: 14px;
+  border-right: 1px solid var(--wd-border-subtle, rgba(148, 163, 184, 0.16));
+}
+
+.Eyebrow,
+.SelectionLabel {
+  color: var(--wd-text-muted, #8491a3);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.MapName {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--wd-text-primary, #f1f5f9);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.SelectionBlock {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 14px;
+
+  strong {
+    overflow: hidden;
+    color: var(--wd-text-secondary, #bdc6d4);
+    font-size: 11px;
+    font-weight: 550;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.ActionSlot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.CrewBlock {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-left: 12px;
+}
+
+.CrewStatus {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--wd-text-muted, #8491a3);
+  font-size: 9px;
+  white-space: nowrap;
+
+  i {
+    display: block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+  }
+}
+
+@media (max-width: 900px) {
+  .Topbar {
+    grid-template-columns: minmax(120px, 1fr) auto minmax(100px, auto);
+  }
+
+  .SelectionBlock {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .Topbar {
+    grid-template-columns: minmax(100px, 1fr) auto;
+    height: 48px;
+    padding: 0 8px;
+  }
+
+  .CrewStatus,
+  .ContextBlock .Eyebrow {
+    display: none;
+  }
+
+  .ActionSlot {
+    position: absolute;
+    right: 8px;
+    bottom: -42px;
+    padding: 2px;
+    border: 1px solid var(--wd-border-subtle, rgba(148, 163, 184, 0.16));
+    border-radius: 8px;
+    background: var(--wd-surface-panel, rgba(12, 18, 26, 0.94));
+  }
+}

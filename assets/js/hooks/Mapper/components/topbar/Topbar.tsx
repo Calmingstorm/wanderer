@@ -4,31 +4,43 @@ import { WithChildren } from '@/hooks/Mapper/types/common.ts';
 import clsx from 'clsx';
 import { useMemo } from 'react';
 import { Characters } from '../characters/Characters';
+import classes from './Topbar.module.scss';
 
 const Topbar = ({ children }: WithChildren) => {
   const {
-    data: { characters, userCharacters },
+    data: { characters, userCharacters, systems, selectedSystems, map_slug: mapSlug },
   } = useMapRootState();
 
   const charsToShow = useMemo(() => {
     return characters.filter(x => userCharacters.includes(x.eve_id)).sort(sortOnlineFunc);
   }, [characters, userCharacters]);
 
+  const onlineCount = useMemo(() => charsToShow.filter(character => character.online).length, [charsToShow]);
+  const selectedSystem = useMemo(
+    () => (selectedSystems.length === 1 ? systems.find(system => system.id === selectedSystems[0]) : null),
+    [selectedSystems, systems],
+  );
+
   return (
-    <nav
-      className={clsx(
-        'px-2 flex items-center justify-center min-w-0 h-12 pointer-events-auto',
-        'border-b border-stone-800 bg-gray-800 bg-opacity-5',
-        'bg-opacity-70 bg-neutral-900',
-      )}
-    >
-      <span className="flex-1"></span>
-      <span className="mr-2"></span>
-      <div className="flex gap-1 items-center">
-        <Characters data={charsToShow} />
+    <nav className={clsx(classes.Topbar, 'pointer-events-auto')} aria-label="Map command bar">
+      <div className={classes.ContextBlock}>
+        <div className={classes.Eyebrow}>Active chain</div>
+        <div className={classes.MapName}>{mapSlug || 'Wanderer map'}</div>
       </div>
 
-      {children}
+      <div className={classes.SelectionBlock}>
+        <span className={classes.SelectionLabel}>Focus</span>
+        <strong>{selectedSystem?.name || selectedSystem?.temporary_name || 'Select a system'}</strong>
+      </div>
+
+      <div className={classes.ActionSlot}>{children}</div>
+
+      <div className={classes.CrewBlock}>
+        <span className={classes.CrewStatus}>
+          <i /> {onlineCount} online
+        </span>
+        <Characters data={charsToShow} />
+      </div>
     </nav>
   );
 };

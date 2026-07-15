@@ -1,3 +1,21 @@
 .RightBarRoot {
-  
+  border-left: 1px solid var(--wd-border-subtle, rgba(148, 163, 184, 0.16));
+  background: linear-gradient(180deg, rgba(17, 24, 33, 0.96), rgba(10, 15, 22, 0.96));
+  box-shadow: -10px 0 28px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(14px);
+
+  button {
+    width: 38px;
+    min-height: 38px;
+    border-radius: 8px;
+    color: var(--wd-text-muted, #8491a3);
+    transition:
+      color 140ms ease,
+      background-color 140ms ease;
+
+    &:hover {
+      color: var(--wd-text-primary, #f1f5f9);
+      background: rgba(148, 163, 184, 0.1) !important;
+    }
+  }
 }
