@@ -15,7 +15,7 @@ describe('signature reconciliation safety', () => {
   const incoming = [sig('AAA-111', SignatureGroup.RelicSite, 'Ruined Monument'), sig('CCC-333', SignatureGroup.GasSite, 'Barren Perimeter Reservoir')];
 
   it('uses update-only semantics by default and cannot delete a chain link', () => {
-    const preview = buildSignatureReconciliation(existing, incoming, false);
+    const preview = buildSignatureReconciliation(existing, incoming, false, '31000001');
     expect(preview.added.map(s => s.eve_id)).toEqual(['CCC-333']);
     expect(preview.changed.map(change => change.after.eve_id)).toEqual(['AAA-111']);
     expect(preview.removed).toEqual([]);
@@ -23,9 +23,15 @@ describe('signature reconciliation safety', () => {
   });
 
   it('shows removals and affected links only for an explicit full sync', () => {
-    const preview = buildSignatureReconciliation(existing, incoming, true);
+    const preview = buildSignatureReconciliation(existing, incoming, true, '31000001');
     expect(preview.removed.map(s => s.eve_id)).toEqual(['BBB-222']);
     expect(preview.affectedLinks.map(s => s.eve_id)).toEqual(['BBB-222']);
+  });
+
+  it('binds the preview and canonical snapshot to the originating system', () => {
+    const preview = buildSignatureReconciliation(existing, incoming, false, '31000001');
+    expect(preview.systemId).toBe('31000001');
+    expect(preview.baseSignatures.map(s => s.eve_id)).toEqual(['AAA-111', 'BBB-222']);
   });
 
   it('calculates Pathfinder-style resolved group completion', () => {
