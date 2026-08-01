@@ -2,7 +2,7 @@ import { Widget } from '@/hooks/Mapper/components/mapInterface/components';
 import { SETTINGS_KEYS, SIGNATURE_WINDOW_ID, SignatureSettingsType } from '@/hooks/Mapper/constants/signatures';
 import { useHotkey } from '@/hooks/Mapper/hooks/useHotkey';
 import { useMapRootState } from '@/hooks/Mapper/mapRootProvider';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { parseSignatures } from '@/hooks/Mapper/helpers';
 import {
   getSignaturePasteLocationWarning,
@@ -33,6 +33,13 @@ export const SystemSignatures = () => {
 
   const [systemId] = selectedSystems;
   const isSystemSelected = selectedSystems.length === 1;
+
+  useEffect(() => {
+    setPendingPaste(null);
+    setReconciliation(null);
+    setPreviewError(null);
+    setDeleteConnections(false);
+  }, [systemId]);
 
   const handleLazyDeleteToggle = useCallback(
     (value: boolean) => settingsSignaturesUpdate(prev => ({ ...prev, [SETTINGS_KEYS.LAZY_DELETE_SIGNATURES]: value })),
@@ -158,7 +165,7 @@ export const SystemSignatures = () => {
           onFullSyncChange={fullSync => {
             setDeleteConnections(false);
             setPreviewError(null);
-            setReconciliation(buildSignatureReconciliation(signatures, reconciliation.incoming, fullSync));
+            setReconciliation(buildSignatureReconciliation(reconciliation.baseSignaturesRaw, reconciliation.incoming, fullSync, reconciliation.systemId));
           }}
           onCancel={() => {
             setDeleteConnections(false);

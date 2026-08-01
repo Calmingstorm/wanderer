@@ -58,12 +58,13 @@ export const useSignatureFetching = ({ systemId, settings, signaturesRef, setSig
   );
 
   const handleApplyReconciliation = useCallback(
-    async (reconciliation: SignatureReconciliation, deleteConnections: boolean) => {
+    async (reconciliation: SignatureReconciliation, deleteConnections: boolean): Promise<boolean> => {
+      if (String(systemId) !== reconciliation.systemId) return false;
       if (reconciliation.added.length === 0 && reconciliation.changed.length === 0 && reconciliation.removed.length === 0) {
-        return;
+        return true;
       }
 
-      await outCommand({
+      const response = await outCommand<{ result?: 'applied' | 'stale'; applied?: boolean }>({
         type: OutCommand.updateSignatures,
         data: {
           ...prepareUpdatePayload(
@@ -74,8 +75,11 @@ export const useSignatureFetching = ({ systemId, settings, signaturesRef, setSig
           ),
           deleteTimeout,
           deleteConnections,
+          baseSignatures: reconciliation.baseSignatures,
         },
       });
+
+      return response?.result !== 'stale' && response?.applied !== false;
     },
     [deleteTimeout, outCommand, systemId],
   );
