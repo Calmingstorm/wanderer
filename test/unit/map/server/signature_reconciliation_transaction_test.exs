@@ -106,6 +106,12 @@ defmodule WandererApp.Map.Server.SignatureReconciliationTransactionTest do
                Map.put(params, :base_signatures, %{"not" => "a list"})
              )
 
+    assert :stale =
+             SignaturesImpl.reconcile_signatures(
+               context.map.id,
+               Map.put(params, :base_signatures, [nil])
+             )
+
     assert [%{name: "Unstable Wormhole"}] =
              MapSystemSignature.by_system_id!(context.system.id)
   end
@@ -136,6 +142,21 @@ defmodule WandererApp.Map.Server.SignatureReconciliationTransactionTest do
 
     assert [%{eve_id: "AAA-111", name: "Unstable Wormhole"}] =
              MapSystemSignature.by_system_id!(context.system.id)
+  end
+
+  test "checked legacy updates report failure instead of claiming success", context do
+    assert {:error, _reason} =
+             SignaturesImpl.update_signatures_checked(context.map.id, %{
+               solar_system_id: context.system.solar_system_id,
+               character_id: context.character.id,
+               user_id: context.user.id,
+               delete_connection_with_sigs: false,
+               added_signatures: [%{"eve_id" => nil}],
+               updated_signatures: [],
+               removed_signatures: []
+             })
+
+    assert [%{eve_id: "AAA-111"}] = MapSystemSignature.by_system_id!(context.system.id)
   end
 
   test "system lock ordering is deterministic and transaction errors are normalized" do
