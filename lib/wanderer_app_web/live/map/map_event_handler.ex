@@ -121,7 +121,9 @@ defmodule WandererAppWeb.MapEventHandler do
   @map_signatures_events [
     :maybe_link_signature,
     :signatures_updated,
-    :remove_signatures
+    :remove_signatures,
+    :remove_signature,
+    :legacy_remove_signatures
   ]
 
   @map_signatures_ui_events [

@@ -4,7 +4,7 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
   require Logger
 
   alias WandererAppWeb.{MapEventHandler, MapCoreEventHandler}
-  alias WandererApp.Map.Server.SignaturesImpl
+  alias WandererApp.Map.Server.{Impl, SignatureSnapshot, SignaturesImpl}
   alias WandererApp.Utils.EVEUtil
 
   def handle_server_event(
@@ -74,49 +74,157 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
           solar_system_id
         )
 
+  # Legacy timers from older callers are still accepted, but all new delayed
+  # removals carry a per-system/per-signature token.
   def handle_server_event(
         %{event: :remove_signatures, payload: {solar_system_id, removed_signatures}},
+        socket
+      ),
+      do:
+        handle_server_event(
+          %{
+            event: :remove_signatures,
+            payload: {solar_system_id, removed_signatures, :use_user_setting}
+          },
+          socket
+        )
+
+  def handle_server_event(
+        %{
+          event: :remove_signatures,
+          payload: {solar_system_id, removed_signatures, _delete_connections?}
+        },
+        socket
+      ) do
+    # Translate the old aggregate timer to token-aware events. If no matching
+    # pending request exists it is safely ignored.
+    Enum.reduce(removed_signatures, socket, fn signature, acc ->
+      key = removal_key(solar_system_id, signature["eve_id"])
+
+      case pending_removals(acc.assigns)[key] do
+        %{token: token} ->
+          handle_server_event(
+            %{event: :remove_signature, payload: {elem(key, 0), signature, token}},
+            acc
+          )
+
+        _ ->
+          acc
+      end
+    end)
+  end
+
+  def handle_server_event(
+        %{event: :legacy_remove_signatures, payload: {solar_system_id, removed_signatures}},
         %{
           assigns: %{
             current_user: %{id: current_user_id},
             main_character_id: main_character_id,
             map_id: map_id,
             map_user_settings: map_user_settings,
-            removed_sig_eve_ids: removed_sig_eve_ids
+            user_permissions: user_permissions
           }
         } = socket
       ) do
-    solar_system_id = get_integer(solar_system_id)
-
     delete_connection_with_sigs =
-      map_user_settings
-      |> WandererApp.MapUserSettingsRepo.to_form_data!()
-      |> WandererApp.MapUserSettingsRepo.get_boolean_setting("delete_connection_with_sigs")
+      delete_connections_for_removal?(
+        :use_user_setting,
+        map_user_settings,
+        user_permissions
+      )
 
-    to_remove =
-      removed_signatures
-      |> Enum.filter(fn %{"eve_id" => eve_id} -> eve_id in removed_sig_eve_ids end)
+    result =
+      SignaturesImpl.update_signatures_checked(map_id, %{
+        solar_system_id: get_integer(solar_system_id),
+        character_id: main_character_id,
+        user_id: current_user_id,
+        delete_connection_with_sigs: delete_connection_with_sigs,
+        added_signatures: [],
+        updated_signatures: [],
+        removed_signatures: removed_signatures
+      })
 
-    to_remove_eve_ids =
-      to_remove
-      |> Enum.map(fn %{"eve_id" => eve_id} -> eve_id end)
+    case result do
+      :ok ->
+        socket
 
-    map_id
-    |> WandererApp.Map.Server.update_signatures(%{
-      solar_system_id: solar_system_id,
-      character_id: main_character_id,
-      user_id: current_user_id,
-      delete_connection_with_sigs: delete_connection_with_sigs,
-      added_signatures: [],
-      updated_signatures: [],
-      removed_signatures: to_remove
-    })
+      {:error, reason} ->
+        Logger.error("Legacy delayed signature removal failed: #{inspect(reason)}")
+        MapEventHandler.push_map_event(socket, "signatures_updated", get_integer(solar_system_id))
+    end
+  end
 
-    socket
-    |> assign(
-      removed_sig_eve_ids:
-        removed_sig_eve_ids |> Enum.reject(fn sig_id -> sig_id in to_remove_eve_ids end)
-    )
+  def handle_server_event(
+        %{event: :remove_signature, payload: {solar_system_id, signature, token}},
+        %{
+          assigns: %{
+            current_user: %{id: current_user_id},
+            main_character_id: main_character_id,
+            map_id: map_id,
+            map_user_settings: map_user_settings,
+            user_permissions: user_permissions
+          }
+        } = socket
+      ) do
+    key = removal_key(solar_system_id, signature["eve_id"])
+    pending = pending_removals(socket.assigns)
+
+    case pending_removal_matches?(pending, key, token) do
+      {:ok, %{delete_connections: delete_connections?, baseline: baseline}} ->
+        delete_connection_with_sigs =
+          delete_connections_for_removal?(
+            delete_connections?,
+            map_user_settings,
+            user_permissions
+          )
+
+        result =
+          SignaturesImpl.remove_signature_if_unchanged(map_id, %{
+            solar_system_id: elem(key, 0),
+            character_id: main_character_id,
+            user_id: current_user_id,
+            delete_connection_with_sigs: delete_connection_with_sigs,
+            signature: signature,
+            baseline: baseline
+          })
+
+        socket = assign(socket, pending_signature_removals: Map.delete(pending, key))
+
+        if guarded_removal_needs_refresh?(result) do
+          if match?({:error, _}, result) do
+            Logger.error("Guarded signature removal failed: #{inspect(result)}")
+          end
+
+          Impl.broadcast!(map_id, :signatures_updated, elem(key, 0))
+        end
+
+        socket
+
+      _ ->
+        # Superseded/cancelled timers must never delete restored or replaced data.
+        socket
+    end
+  end
+
+  @doc false
+  def delete_connections_for_removal?(mode, map_user_settings, user_permissions) do
+    can_delete_connection? = Map.get(user_permissions, :delete_connection, false)
+
+    requested? =
+      case mode do
+        true ->
+          true
+
+        :use_user_setting ->
+          map_user_settings
+          |> WandererApp.MapUserSettingsRepo.to_form_data!()
+          |> WandererApp.MapUserSettingsRepo.get_boolean_setting("delete_connection_with_sigs")
+
+        _ ->
+          false
+      end
+
+    requested? and can_delete_connection?
   end
 
   def handle_server_event(event, socket),
@@ -136,13 +244,7 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
     system_signatures =
       systems
       |> Enum.reduce(%{}, fn %{id: system_id, solar_system_id: solar_system_id}, acc ->
-        signatures =
-          system_id
-          |> get_system_signatures()
-          |> Enum.filter(fn signature ->
-            is_nil(signature.linked_system) && signature.group == "Wormhole"
-          end)
-
+        signatures = get_system_signatures(system_id)
         acc |> Map.put(solar_system_id, signatures)
       end)
 
@@ -162,49 +264,116 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
           "updated" => updated_signatures,
           "removed" => removed_signatures,
           "deleteTimeout" => delete_timeout
-        },
+        } = event,
         %{
-          assigns:
-            %{
-              current_user: %{id: current_user_id},
-              map_id: map_id,
-              main_character_id: main_character_id,
-              map_user_settings: _map_user_settings,
-              user_permissions: %{update_system: true}
-            } = assigns
+          assigns: %{
+            current_user: %{id: current_user_id},
+            map_id: map_id,
+            main_character_id: main_character_id,
+            user_permissions: %{update_system: true}
+          }
         } = socket
       )
       when not is_nil(main_character_id) do
     solar_system_id = get_integer(solar_system_id)
+    pending = pending_removals(socket.assigns)
 
-    old_removed_sig_eve_ids = Map.get(assigns, :removed_sig_eve_ids, [])
+    pending_eve_ids =
+      pending
+      |> Map.keys()
+      |> Enum.filter(fn {system_id, _eve_id} -> system_id == solar_system_id end)
+      |> Enum.map(&elem(&1, 1))
+      |> MapSet.new()
 
-    new_removed_sig_eve_ids =
-      removed_signatures
-      |> Enum.map(fn %{"eve_id" => eve_id} -> eve_id end)
+    case signature_update_mode(event) do
+      :legacy ->
+        # Old clients predate reconciliation snapshots and explicit connection policy.
+        # Keep their historical delayed-removal semantics, but never let a crafted
+        # new request with deleteConnections fall through this compatibility path.
+        case SignaturesImpl.update_signatures_checked(map_id, %{
+               solar_system_id: solar_system_id,
+               character_id: main_character_id,
+               user_id: current_user_id,
+               delete_connection_with_sigs: false,
+               added_signatures: added_signatures,
+               updated_signatures: updated_signatures,
+               removed_signatures: []
+             }) do
+          :ok ->
+            if removed_signatures != [] do
+              Process.send_after(
+                self(),
+                %{
+                  event: :legacy_remove_signatures,
+                  payload: {solar_system_id, removed_signatures}
+                },
+                max(get_integer(delete_timeout) || 0, 0)
+              )
+            end
 
-    Process.send_after(
-      self(),
-      %{event: :remove_signatures, payload: {solar_system_id, removed_signatures}},
-      delete_timeout
-    )
+            {:reply, %{result: "applied", applied: true}, socket}
 
-    map_id
-    |> WandererApp.Map.Server.update_signatures(%{
-      solar_system_id: solar_system_id,
-      character_id: main_character_id,
-      user_id: current_user_id,
-      delete_connection_with_sigs: false,
-      added_signatures: added_signatures,
-      updated_signatures: updated_signatures,
-      removed_signatures: []
-    })
+          {:error, reason} ->
+            Logger.error("Legacy signature update failed: #{inspect(reason)}")
+            {:reply, %{result: "error", applied: false}, socket}
+        end
 
-    {:noreply,
-     socket
-     |> assign(
-       removed_sig_eve_ids: (old_removed_sig_eve_ids ++ new_removed_sig_eve_ids) |> Enum.uniq()
-     )}
+      :guarded ->
+        result =
+          SignaturesImpl.reconcile_signatures(map_id, %{
+            solar_system_id: solar_system_id,
+            character_id: main_character_id,
+            user_id: current_user_id,
+            delete_connection_with_sigs: false,
+            added_signatures: added_signatures,
+            updated_signatures: updated_signatures,
+            removed_signatures: removed_signatures,
+            base_signatures: Map.get(event, "baseSignatures"),
+            pending_eve_ids: pending_eve_ids
+          })
+
+        case result do
+          :stale ->
+            {:reply, %{result: "stale", applied: false}, socket}
+
+          {:applied, baselines} ->
+            delete_connections? = Map.get(event, "deleteConnections") == true
+
+            restored_ids =
+              (added_signatures ++ updated_signatures)
+              |> Enum.map(& &1["eve_id"])
+              |> Enum.reject(&is_nil/1)
+
+            pending = cancel_pending_removals(pending, solar_system_id, restored_ids)
+
+            pending =
+              Enum.reduce(removed_signatures, pending, fn signature, acc ->
+                token = make_ref()
+                eve_id = signature["eve_id"]
+                key = removal_key(solar_system_id, eve_id)
+
+                Process.send_after(
+                  self(),
+                  %{event: :remove_signature, payload: {solar_system_id, signature, token}},
+                  max(get_integer(delete_timeout) || 0, 0)
+                )
+
+                Map.put(acc, key, %{
+                  token: token,
+                  signature: signature,
+                  delete_connections: delete_connections?,
+                  baseline: Map.get(baselines, eve_id)
+                })
+              end)
+
+            {:reply, %{result: "applied", applied: true},
+             assign(socket, pending_signature_removals: pending)}
+
+          {:error, reason} ->
+            Logger.error("Signature reconciliation failed: #{inspect(reason)}")
+            {:reply, %{result: "error", applied: false}, socket}
+        end
+    end
   end
 
   def handle_ui_event(
@@ -222,13 +391,13 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
            solar_system_id: get_integer(solar_system_id)
          }) do
       {:ok, system} ->
-        removed_sig_eve_ids = Map.get(assigns, :removed_sig_eve_ids, [])
+        pending = pending_removals(assigns)
 
         system_signatures =
           get_system_signatures(system.id)
           |> Enum.map(fn sig ->
-            if sig.eve_id in removed_sig_eve_ids do
-              sig |> Map.put(:deleted, true)
+            if Map.has_key?(pending, removal_key(solar_system_id, sig.eve_id)) do
+              Map.put(sig, :deleted, true)
             else
               sig
             end
@@ -450,28 +619,66 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
 
   def handle_ui_event(
         "undo_delete_signatures",
-        %{"system_id" => solar_system_id, "eve_ids" => eve_ids} = _payload,
+        %{"system_id" => solar_system_id, "eve_ids" => eve_ids},
         %{
           assigns: %{
             map_id: map_id,
             main_character_id: main_character_id,
-            user_permissions: %{update_system: true},
-            removed_sig_eve_ids: removed_sig_eve_ids
+            user_permissions: %{update_system: true}
           }
         } = socket
       )
       when not is_nil(main_character_id) do
+    solar_system_id = get_integer(solar_system_id)
+    pending = cancel_pending_removals(pending_removals(socket.assigns), solar_system_id, eve_ids)
     WandererApp.Map.Server.Impl.broadcast!(map_id, :signatures_updated, solar_system_id)
-
-    {:noreply,
-     socket
-     |> assign(
-       removed_sig_eve_ids: removed_sig_eve_ids |> Enum.reject(fn sig_id -> sig_id in eve_ids end)
-     )}
+    {:reply, %{result: "undone"}, assign(socket, pending_signature_removals: pending)}
   end
 
   def handle_ui_event(event, body, socket),
     do: MapCoreEventHandler.handle_ui_event(event, body, socket)
+
+  @doc false
+  def signature_update_mode(event) when is_map(event) do
+    if not Map.has_key?(event, "baseSignatures") and
+         not Map.has_key?(event, "deleteConnections") do
+      :legacy
+    else
+      :guarded
+    end
+  end
+
+  @doc false
+  def removal_key(solar_system_id, eve_id), do: {get_integer(solar_system_id), eve_id}
+
+  @doc false
+  def cancel_pending_removals(pending, solar_system_id, eve_ids) do
+    keys = MapSet.new(Enum.map(eve_ids, &removal_key(solar_system_id, &1)))
+    Map.reject(pending, fn {key, _value} -> MapSet.member?(keys, key) end)
+  end
+
+  @doc false
+  def pending_removal_matches?(pending, key, token) do
+    case Map.get(pending, key) do
+      %{token: ^token} = entry -> {:ok, entry}
+      _ -> :stale
+    end
+  end
+
+  defp pending_removals(assigns), do: Map.get(assigns, :pending_signature_removals, %{})
+
+  @doc false
+  def canonical_signature_snapshot(signatures, pending_keys \\ MapSet.new()),
+    do: SignatureSnapshot.current(signatures, pending_keys)
+
+  @doc false
+  def snapshots_match?(expected, current), do: SignatureSnapshot.matches?(expected, current)
+
+  @doc false
+  def guarded_removal_needs_refresh?(:removed), do: false
+  def guarded_removal_needs_refresh?(:stale), do: true
+  def guarded_removal_needs_refresh?({:error, _reason}), do: true
+  def guarded_removal_needs_refresh?(_unexpected), do: true
 
   def get_system_signatures(system_id) do
     signatures = system_id |> WandererApp.Api.MapSystemSignature.by_system_id!()

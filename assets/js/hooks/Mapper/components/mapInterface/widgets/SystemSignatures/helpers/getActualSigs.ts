@@ -56,7 +56,9 @@ export const getActualSigs = (
         console.error(`getActualSigs: Error merging custom_info for ${oldSig.eve_id}`, e);
       }
 
-      if (newSig.updated_at !== oldSig.updated_at) {
+      // Scanner clipboard rows do not carry timestamps. Do not turn every paste into
+      // a change (or erase the server timestamp) merely because updated_at is absent.
+      if (newSig.updated_at != null && newSig.updated_at !== oldSig.updated_at) {
         mergedSig.updated_at = newSig.updated_at;
         changed = true;
       }

@@ -54,36 +54,35 @@ defmodule WandererApp.ExternalEvents do
   """
   @spec broadcast(String.t(), Event.event_type(), map()) :: :ok
   def broadcast(map_id, event_type, payload) when is_binary(map_id) and is_map(payload) do
-    log_message = "ExternalEvents.broadcast called - map: #{map_id}, type: #{event_type}"
+    WandererApp.Repo.TransactionNotifications.defer(fn ->
+      log_message = "ExternalEvents.broadcast called - map: #{map_id}, type: #{event_type}"
 
-    Logger.debug(fn -> log_message end)
+      Logger.debug(fn -> log_message end)
 
-    # Validate event type
-    if Event.valid_event_type?(event_type) do
-      # Create normalized event
-      event = Event.new(map_id, event_type, payload)
+      if Event.valid_event_type?(event_type) do
+        event = Event.new(map_id, event_type, payload)
 
-      # Emit telemetry for monitoring
-      :telemetry.execute(
-        [:wanderer_app, :external_events, :broadcast],
-        %{count: 1},
-        %{map_id: map_id, event_type: event_type}
-      )
+        :telemetry.execute(
+          [:wanderer_app, :external_events, :broadcast],
+          %{count: 1},
+          %{map_id: map_id, event_type: event_type}
+        )
 
-      # Check if MapEventRelay is alive before sending
-      if Process.whereis(MapEventRelay) do
-        # Use cast for async delivery to avoid blocking the caller
-        # This is critical for performance in hot paths (character updates)
-        GenServer.cast(MapEventRelay, {:deliver_event, event})
-        :ok
+        if Process.whereis(MapEventRelay) do
+          GenServer.cast(MapEventRelay, {:deliver_event, event})
+          :ok
+        else
+          Logger.debug(fn ->
+            "MapEventRelay not available for event delivery (map: #{map_id})"
+          end)
+
+          {:error, :relay_not_available}
+        end
       else
-        Logger.debug(fn -> "MapEventRelay not available for event delivery (map: #{map_id})" end)
-        {:error, :relay_not_available}
+        Logger.warning("Invalid external event type: #{inspect(event_type)}")
+        {:error, :invalid_event_type}
       end
-    else
-      Logger.warning("Invalid external event type: #{inspect(event_type)}")
-      {:error, :invalid_event_type}
-    end
+    end)
   end
 
   @doc """

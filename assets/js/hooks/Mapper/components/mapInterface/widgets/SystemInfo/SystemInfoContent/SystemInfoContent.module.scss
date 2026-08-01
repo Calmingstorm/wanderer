@@ -1,3 +1,7 @@
+.SmallText {
+  font-size: var(--rf-system-info-small-font-size, 10px);
+}
+
 .IntelHeader {
   display: flex;
   align-items: flex-start;

@@ -14,6 +14,7 @@ import { useUnsplashedSignatures } from './useUnsplashedSignatures';
 import { useSystemName } from './useSystemName';
 import { LabelInfo, useLabelsInfo } from './useLabelsInfo';
 import { getSystemStaticInfo } from '@/hooks/Mapper/mapRootProvider/hooks/useLoadSystemStatic';
+import { getSignatureScanProgress, SignatureScanProgress } from '@/hooks/Mapper/components/mapInterface/widgets/SystemSignatures/helpers';
 
 export interface SolarSystemNodeVars {
   id: string;
@@ -53,6 +54,7 @@ export interface SolarSystemNodeVars {
   temporaryName?: string | null;
   description: string | null;
   comments_count: number | null;
+  scanProgress: SignatureScanProgress;
   systemHighlighted: string | undefined;
 }
 
@@ -117,6 +119,8 @@ export const useSolarSystemNode = (props: NodeProps<MapSolarSystemType>): SolarS
   const visible = useMemo(() => visibleNodes.has(id), [id, visibleNodes]);
 
   const systemSigs = useMemo(() => mapSystemSignatures[solar_system_id] || [], [solar_system_id, mapSystemSignatures]);
+
+  const scanProgress = useMemo(() => getSignatureScanProgress(systemSigs), [systemSigs]);
 
   const charactersInSystem = useMemo(() => {
     return characters.filter(c => c.location?.solar_system_id === parseInt(solar_system_id) && c.online);
@@ -220,6 +224,7 @@ export const useSolarSystemNode = (props: NodeProps<MapSolarSystemType>): SolarS
     isRally,
     description,
     comments_count,
+    scanProgress,
     systemHighlighted,
   };
 
