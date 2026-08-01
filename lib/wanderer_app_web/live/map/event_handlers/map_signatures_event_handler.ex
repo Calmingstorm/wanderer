@@ -4,7 +4,7 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
   require Logger
 
   alias WandererAppWeb.{MapEventHandler, MapCoreEventHandler}
-  alias WandererApp.Map.Server.SignaturesImpl
+  alias WandererApp.Map.Server.{Impl, SignatureSnapshot, SignaturesImpl}
   alias WandererApp.Utils.EVEUtil
 
   def handle_server_event(
@@ -138,16 +138,27 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
             user_permissions
           )
 
-        SignaturesImpl.remove_signature_if_unchanged(map_id, %{
-          solar_system_id: elem(key, 0),
-          character_id: main_character_id,
-          user_id: current_user_id,
-          delete_connection_with_sigs: delete_connection_with_sigs,
-          signature: signature,
-          baseline: baseline
-        })
+        result =
+          SignaturesImpl.remove_signature_if_unchanged(map_id, %{
+            solar_system_id: elem(key, 0),
+            character_id: main_character_id,
+            user_id: current_user_id,
+            delete_connection_with_sigs: delete_connection_with_sigs,
+            signature: signature,
+            baseline: baseline
+          })
 
-        assign(socket, pending_signature_removals: Map.delete(pending, key))
+        socket = assign(socket, pending_signature_removals: Map.delete(pending, key))
+
+        if guarded_removal_needs_refresh?(result) do
+          if match?({:error, _}, result) do
+            Logger.error("Guarded signature removal failed: #{inspect(result)}")
+          end
+
+          Impl.broadcast!(map_id, :signatures_updated, elem(key, 0))
+        end
+
+        socket
 
       _ ->
         # Superseded/cancelled timers must never delete restored or replaced data.
@@ -167,9 +178,7 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
         :use_user_setting ->
           map_user_settings
           |> WandererApp.MapUserSettingsRepo.to_form_data!()
-          |> WandererApp.MapUserSettingsRepo.get_boolean_setting(
-            "delete_connection_with_sigs"
-          )
+          |> WandererApp.MapUserSettingsRepo.get_boolean_setting("delete_connection_with_sigs")
 
         _ ->
           false
@@ -217,31 +226,48 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
           "deleteTimeout" => delete_timeout
         } = event,
         %{
-          assigns:
-            %{
-              current_user: %{id: current_user_id},
-              map_id: map_id,
-              main_character_id: main_character_id,
-              user_permissions: %{update_system: true}
-            }
+          assigns: %{
+            current_user: %{id: current_user_id},
+            map_id: map_id,
+            main_character_id: main_character_id,
+            user_permissions: %{update_system: true}
+          }
         } = socket
       )
       when not is_nil(main_character_id) do
     solar_system_id = get_integer(solar_system_id)
     pending = pending_removals(socket.assigns)
 
-    case snapshot_matches?(map_id, solar_system_id, Map.get(event, "baseSignatures"), pending) do
-      false ->
+    pending_eve_ids =
+      pending
+      |> Map.keys()
+      |> Enum.filter(fn {system_id, _eve_id} -> system_id == solar_system_id end)
+      |> Enum.map(&elem(&1, 1))
+      |> MapSet.new()
+
+    result =
+      SignaturesImpl.reconcile_signatures(map_id, %{
+        solar_system_id: solar_system_id,
+        character_id: main_character_id,
+        user_id: current_user_id,
+        delete_connection_with_sigs: false,
+        added_signatures: added_signatures,
+        updated_signatures: updated_signatures,
+        removed_signatures: removed_signatures,
+        base_signatures: Map.get(event, "baseSignatures"),
+        pending_eve_ids: pending_eve_ids
+      })
+
+    case result do
+      :stale ->
         {:reply, %{result: "stale", applied: false}, socket}
 
-      true ->
+      {:applied, baselines} ->
         delete_connections? =
           if Map.has_key?(event, "deleteConnections"),
             do: Map.get(event, "deleteConnections") == true,
             else: :use_user_setting
 
-        # An add/update/restore is authoritative cancellation of any pending
-        # deletion for that same signature in that same system.
         restored_ids =
           (added_signatures ++ updated_signatures)
           |> Enum.map(& &1["eve_id"])
@@ -249,10 +275,11 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
 
         pending = cancel_pending_removals(pending, solar_system_id, restored_ids)
 
-        {pending, _tokens} =
-          Enum.reduce(removed_signatures, {pending, []}, fn signature, {acc, tokens} ->
+        pending =
+          Enum.reduce(removed_signatures, pending, fn signature, acc ->
             token = make_ref()
-            key = removal_key(solar_system_id, signature["eve_id"])
+            eve_id = signature["eve_id"]
+            key = removal_key(solar_system_id, eve_id)
 
             Process.send_after(
               self(),
@@ -260,34 +287,20 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
               max(get_integer(delete_timeout) || 0, 0)
             )
 
-            entry = %{
+            Map.put(acc, key, %{
               token: token,
               signature: signature,
               delete_connections: delete_connections?,
-              baseline:
-                SignaturesImpl.removal_baseline(
-                  map_id,
-                  solar_system_id,
-                  signature["eve_id"]
-                )
-            }
-
-            {Map.put(acc, key, entry), [token | tokens]}
+              baseline: Map.get(baselines, eve_id)
+            })
           end)
-
-        map_id
-        |> WandererApp.Map.Server.update_signatures(%{
-          solar_system_id: solar_system_id,
-          character_id: main_character_id,
-          user_id: current_user_id,
-          delete_connection_with_sigs: false,
-          added_signatures: added_signatures,
-          updated_signatures: updated_signatures,
-          removed_signatures: []
-        })
 
         {:reply, %{result: "applied", applied: true},
          assign(socket, pending_signature_removals: pending)}
+
+      {:error, reason} ->
+        Logger.error("Signature reconciliation failed: #{inspect(reason)}")
+        {:reply, %{result: "error", applied: false}, socket}
     end
   end
 
@@ -573,94 +586,17 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
   defp pending_removals(assigns), do: Map.get(assigns, :pending_signature_removals, %{})
 
   @doc false
-  def canonical_signature_snapshot(signatures, pending_keys \\ MapSet.new()) do
-    signatures
-    |> Enum.map(fn signature ->
-      eve_id = field(signature, :eve_id)
-      custom_info = canonical_custom_info(field(signature, :custom_info))
-
-      %{
-        "eve_id" => eve_id,
-        "group" => field(signature, :group),
-        "kind" => field(signature, :kind),
-        "name" => field(signature, :name),
-        "type" => field(signature, :type),
-        "description" => field(signature, :description),
-        "custom_info" => custom_info,
-        "temporary_name" => field(signature, :temporary_name),
-        "character_eve_id" => field(signature, :character_eve_id),
-        "linked_system_id" => field(signature, :linked_system_id),
-        "deleted" => MapSet.member?(pending_keys, eve_id) or field(signature, :deleted) == true
-      }
-    end)
-    |> Enum.sort_by(& &1["eve_id"])
-  end
+  def canonical_signature_snapshot(signatures, pending_keys \\ MapSet.new()),
+    do: SignatureSnapshot.current(signatures, pending_keys)
 
   @doc false
-  def snapshots_match?(expected, current),
-    do: canonicalize_client_snapshot(expected) == current
+  def snapshots_match?(expected, current), do: SignatureSnapshot.matches?(expected, current)
 
-  defp snapshot_matches?(_map_id, _solar_system_id, nil, _pending), do: true
-
-  defp snapshot_matches?(map_id, solar_system_id, expected, pending) do
-    case WandererApp.Api.MapSystem.read_by_map_and_solar_system(%{
-           map_id: map_id,
-           solar_system_id: solar_system_id
-         }) do
-      {:ok, system} ->
-        pending_ids =
-          pending
-          |> Map.keys()
-          |> Enum.filter(fn {system_id, _eve_id} -> system_id == solar_system_id end)
-          |> Enum.map(&elem(&1, 1))
-          |> MapSet.new()
-
-        current =
-          system.id
-          |> WandererApp.Api.MapSystemSignature.by_system_id!()
-          |> canonical_signature_snapshot(pending_ids)
-
-        snapshots_match?(expected, current)
-
-      _ ->
-        false
-    end
-  end
-
-  defp canonicalize_client_snapshot(snapshot) when is_list(snapshot) do
-    snapshot
-    |> Enum.map(fn sig ->
-      %{
-        "eve_id" => field(sig, :eve_id),
-        "group" => field(sig, :group),
-        "kind" => field(sig, :kind),
-        "name" => field(sig, :name),
-        "type" => field(sig, :type),
-        "description" => field(sig, :description),
-        "custom_info" => canonical_custom_info(field(sig, :custom_info)),
-        "temporary_name" => field(sig, :temporary_name),
-        "character_eve_id" => field(sig, :character_eve_id),
-        "linked_system_id" => field(sig, :linked_system_id),
-        "deleted" => field(sig, :deleted) == true
-      }
-    end)
-    |> Enum.sort_by(& &1["eve_id"])
-  end
-
-  defp canonicalize_client_snapshot(_), do: :invalid
-
-  defp canonical_custom_info(nil), do: nil
-  defp canonical_custom_info(""), do: nil
-  defp canonical_custom_info(value) when is_map(value) or is_list(value), do: value
-  defp canonical_custom_info(value) when is_binary(value) do
-    case Jason.decode(value) do
-      {:ok, decoded} -> decoded
-      _ -> value
-    end
-  end
-  defp canonical_custom_info(value), do: value
-
-  defp field(map, key) when is_map(map), do: Map.get(map, key, Map.get(map, Atom.to_string(key)))
+  @doc false
+  def guarded_removal_needs_refresh?(:removed), do: false
+  def guarded_removal_needs_refresh?(:stale), do: true
+  def guarded_removal_needs_refresh?({:error, _reason}), do: true
+  def guarded_removal_needs_refresh?(_unexpected), do: true
 
   def get_system_signatures(system_id) do
     signatures = system_id |> WandererApp.Api.MapSystemSignature.by_system_id!()

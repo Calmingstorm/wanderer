@@ -14,7 +14,9 @@ defmodule WandererAppWeb.MapSignaturesReconciliationDeletionPolicyTest do
   test "explicit deletion still requires current connection-delete permission" do
     settings = %{settings: Jason.encode!(%{"delete_connection_with_sigs" => true})}
 
-    refute MapSignaturesEventHandler.delete_connections_for_removal?(true, settings, %{delete_connection: false})
+    refute MapSignaturesEventHandler.delete_connections_for_removal?(true, settings, %{
+             delete_connection: false
+           })
   end
 
   test "legacy manual deletion may use the saved preference but remains permission-gated" do
@@ -33,7 +35,6 @@ defmodule WandererAppWeb.MapSignaturesReconciliationDeletionPolicyTest do
              %{delete_connection: true}
            )
   end
-
 
   test "canonical snapshots accept a matching base and reject stale bases" do
     current = [
@@ -58,6 +59,12 @@ defmodule WandererAppWeb.MapSignaturesReconciliationDeletionPolicyTest do
     refute MapSignaturesEventHandler.snapshots_match?(stale, canonical)
   end
 
+  test "stale and failed delayed removals require a client refresh" do
+    refute MapSignaturesEventHandler.guarded_removal_needs_refresh?(:removed)
+    assert MapSignaturesEventHandler.guarded_removal_needs_refresh?(:stale)
+    assert MapSignaturesEventHandler.guarded_removal_needs_refresh?({:error, :database})
+  end
+
   test "pending removals are isolated by system and superseded tokens are stale" do
     old_token = make_ref()
     new_token = make_ref()
@@ -69,11 +76,15 @@ defmodule WandererAppWeb.MapSignaturesReconciliationDeletionPolicyTest do
       other_key => %{token: old_token, delete_connections: true}
     }
 
-    assert :stale = MapSignaturesEventHandler.pending_removal_matches?(pending, first_key, old_token)
+    assert :stale =
+             MapSignaturesEventHandler.pending_removal_matches?(pending, first_key, old_token)
+
     assert {:ok, %{delete_connections: false}} =
              MapSignaturesEventHandler.pending_removal_matches?(pending, first_key, new_token)
 
-    remaining = MapSignaturesEventHandler.cancel_pending_removals(pending, 31_000_001, ["AAA-111"])
+    remaining =
+      MapSignaturesEventHandler.cancel_pending_removals(pending, 31_000_001, ["AAA-111"])
+
     refute Map.has_key?(remaining, first_key)
     assert Map.has_key?(remaining, other_key)
   end
