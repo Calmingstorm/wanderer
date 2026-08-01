@@ -31,9 +31,13 @@ defmodule WandererApp.Map.Server.SignatureSnapshot do
   end
 
   def client(snapshot) when is_list(snapshot) do
-    snapshot
-    |> Enum.map(&canonical_signature/1)
-    |> sort()
+    if Enum.all?(snapshot, &is_map/1) do
+      snapshot
+      |> Enum.map(&canonical_signature/1)
+      |> sort()
+    else
+      :invalid
+    end
   end
 
   def client(_snapshot), do: :invalid

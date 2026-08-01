@@ -13,7 +13,20 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
   @doc """
   Public entrypoint for updating signatures on a map system.
   """
-  def update_signatures(
+  def update_signatures(map_id, params) do
+    case update_signatures_checked(map_id, params) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        # Keep the legacy outward contract used by REST/import callers.
+        Logger.error("Signature update transaction failed: #{inspect(reason)}")
+        :ok
+    end
+  end
+
+  @doc false
+  def update_signatures_checked(
         map_id,
         %{
           solar_system_id: system_solar_id,
@@ -27,6 +40,8 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
       )
       when not is_nil(char_id) do
     safe_signature_transaction(fn ->
+      lock_map_signature_updates!(map_id)
+
       case MapSystem.read_by_map_and_solar_system(%{
              map_id: map_id,
              solar_system_id: system_solar_id
@@ -49,22 +64,17 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
           end
 
         error ->
-          Logger.warning("Skipping signature update: #{inspect(error)}")
-          :ok
+          WandererApp.Repo.rollback({:system_not_found, error})
       end
     end)
     |> case do
-      {:ok, result} ->
-        result
-
-      {:error, reason} ->
-        # Keep the legacy outward contract: callers historically receive :ok.
-        Logger.error("Signature update transaction failed: #{inspect(reason)}")
-        :ok
+      {:ok, :ok} -> :ok
+      {:ok, other} -> {:error, {:unexpected_update_result, other}}
+      {:error, reason} -> {:error, reason}
     end
   end
 
-  def update_signatures(_map_id, _), do: :ok
+  def update_signatures_checked(_map_id, _), do: {:error, :invalid_signature_update}
 
   @doc """
   Atomically reconciles additions and updates against a locked client snapshot.
@@ -85,6 +95,8 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
       )
       when not is_nil(char_id) and is_list(expected) do
     safe_signature_transaction(fn ->
+      lock_map_signature_updates!(map_id)
+
       case MapSystem.read_by_map_and_solar_system(%{
              map_id: map_id,
              solar_system_id: system_solar_id
@@ -166,6 +178,8 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
       )
       when is_map(expected_baseline) and not is_nil(character_id) do
     safe_signature_transaction(fn ->
+      lock_map_signature_updates!(map_id)
+
       case MapSystem.read_by_map_and_solar_system(%{
              map_id: map_id,
              solar_system_id: solar_system_id
@@ -217,6 +231,19 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
   end
 
   def remove_signature_if_unchanged(_map_id, _params), do: :stale
+
+  # Serialize signature graph mutations per map. Source-only, reciprocal, and
+  # delayed-removal paths all take this transaction-scoped lock before row locks,
+  # preventing opposite A→B/B→A lock acquisition across LiveView clients.
+  defp lock_map_signature_updates!(map_id) do
+    Ecto.Adapters.SQL.query!(
+      WandererApp.Repo,
+      "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))",
+      [to_string(map_id)]
+    )
+
+    :ok
+  end
 
   @doc false
   def deterministic_system_lock_order(system_ids) do
