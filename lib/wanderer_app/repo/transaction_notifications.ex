@@ -4,6 +4,7 @@ defmodule WandererApp.Repo.TransactionNotifications do
   require Logger
 
   @notifications_key {__MODULE__, :notifications}
+  @transaction_resource WandererApp.Api.MapSystemSignature
 
   def transaction(fun) when is_function(fun, 0) do
     case Process.get(@notifications_key) do
@@ -29,16 +30,22 @@ defmodule WandererApp.Repo.TransactionNotifications do
     Process.put(@notifications_key, [])
 
     try do
-      result = WandererApp.Repo.transaction(fun)
+      result =
+        Ash.transact(@transaction_resource, fun, return_notifications?: true)
+
       notifications = Process.get(@notifications_key, [])
       Process.delete(@notifications_key)
 
       case result do
-        {:ok, _value} -> flush(Enum.reverse(notifications))
-        {:error, _reason} -> :ok
+        {:ok, _value, ash_notifications} ->
+          flush_ash(ash_notifications)
+          flush(Enum.reverse(notifications))
+
+        {:error, _reason} ->
+          :ok
       end
 
-      result
+      normalize_result(result)
     catch
       kind, reason ->
         Process.delete(@notifications_key)
@@ -48,18 +55,56 @@ defmodule WandererApp.Repo.TransactionNotifications do
 
   defp nested_transaction(fun, notifications_before) do
     try do
-      result = WandererApp.Repo.transaction(fun)
+      result =
+        Ash.transact(@transaction_resource, fun, return_notifications?: true)
 
-      if match?({:error, _reason}, result) do
-        Process.put(@notifications_key, notifications_before)
+      case result do
+        {:ok, _value, ash_notifications} ->
+          defer(fn -> flush_ash(ash_notifications) end)
+
+        {:error, _reason} ->
+          Process.put(@notifications_key, notifications_before)
       end
 
-      result
+      normalize_result(result)
     catch
       kind, reason ->
         Process.put(@notifications_key, notifications_before)
         :erlang.raise(kind, reason, __STACKTRACE__)
     end
+  end
+
+  defp normalize_result({:ok, value, _notifications}), do: {:ok, value}
+
+  defp normalize_result(
+         {:error, %Ash.Error.Unknown.UnknownError{error: "unknown error: :" <> atom_name}} =
+           result
+       ) do
+    try do
+      {:error, String.to_existing_atom(atom_name)}
+    rescue
+      ArgumentError -> result
+    end
+  end
+
+  defp normalize_result(result), do: result
+
+  defp flush_ash(notifications) do
+    notifications
+    |> Ash.Notifier.notify()
+    |> case do
+      [] ->
+        :ok
+
+      remaining ->
+        Logger.warning("Post-commit Ash notifications were not delivered: #{inspect(remaining)}")
+    end
+  rescue
+    error ->
+      Logger.error("Post-commit Ash notification failed: #{Exception.message(error)}")
+  catch
+    kind, reason ->
+      Logger.error("Post-commit Ash notification failed: #{inspect({kind, reason})}")
   end
 
   defp flush(notifications) do
