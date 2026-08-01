@@ -1,6 +1,7 @@
 import { useMapEventListener } from '@/hooks/Mapper/events';
 import { parseSignatures } from '@/hooks/Mapper/helpers';
 import { Commands, ExtendedSystemSignature, SignatureKind } from '@/hooks/Mapper/types';
+import { buildSignatureReconciliation, SignatureReconciliation, getSignatureStateFingerprint } from '../helpers';
 import { useCallback, useEffect, useState } from 'react';
 import useRefState from 'react-usestateref';
 
@@ -19,47 +20,51 @@ export const useSystemSignaturesData = ({
   const [selectedSignatures, setSelectedSignatures] = useState<ExtendedSystemSignature[]>([]);
   const [hasUnsupportedLanguage, setHasUnsupportedLanguage] = useState<boolean>(false);
 
-  const { handleGetSignatures, handleUpdateSignatures } = useSignatureFetching({
+  const { handleGetSignatures, handleUpdateSignatures, handleApplyReconciliation } = useSignatureFetching({
     systemId,
     settings,
     signaturesRef,
     setSignatures,
   });
 
-  const handlePaste = useCallback(
-    async (clipboardString: string) => {
-      const lazyDeleteValue = settings[SETTINGS_KEYS.LAZY_DELETE_SIGNATURES] as boolean;
-
-      // Parse the incoming signatures
+  const prepareReconciliation = useCallback(
+    (clipboardString: string): SignatureReconciliation | null => {
       const incomingSignatures = parseSignatures(
         clipboardString,
-        Object.keys(settings).filter(skey => skey in SignatureKind),
+        Object.keys(settings).filter(settingKey => settingKey in SignatureKind),
       ) as ExtendedSystemSignature[];
 
       if (incomingSignatures.length === 0) {
-        return;
+        return null;
       }
 
-      // Check if any signatures might be using unsupported languages
-      // This is a basic heuristic: if we have signatures where the original group wasn't mapped
       const clipboardRows = clipboardString.split('\n').filter(row => row.trim() !== '');
       const detectedSignatureCount = clipboardRows.filter(row => row.match(/^[A-Z]{3}-\d{3}/)).length;
+      setHasUnsupportedLanguage(detectedSignatureCount > incomingSignatures.length);
 
-      // If we detected valid IDs but got fewer parsed signatures, we might have language issues
-      if (detectedSignatureCount > 0 && incomingSignatures.length < detectedSignatureCount) {
-        setHasUnsupportedLanguage(true);
-      } else {
-        setHasUnsupportedLanguage(false);
+      // Scanner reconciliation always opens in update-only mode. Removing signatures
+      // requires an explicit choice in the preview, regardless of prior lazy-delete settings.
+      return buildSignatureReconciliation(signaturesRef.current, incomingSignatures, false, String(systemId));
+    },
+    [settings, signaturesRef, systemId],
+  );
+
+  const applyReconciliation = useCallback(
+    async (reconciliation: SignatureReconciliation, deleteConnections: boolean): Promise<boolean> => {
+      if (String(systemId) !== reconciliation.systemId || getSignatureStateFingerprint(signaturesRef.current) !== reconciliation.baseFingerprint) {
+        return false;
       }
 
-      await handleUpdateSignatures(incomingSignatures, !lazyDeleteValue, false);
+      const applied = await handleApplyReconciliation(reconciliation, deleteConnections);
+      if (!applied) return false;
 
       const keepLazy = settings[SETTINGS_KEYS.KEEP_LAZY_DELETE] as boolean;
-      if (lazyDeleteValue && !keepLazy) {
+      if (reconciliation.fullSync && !keepLazy) {
         onLazyDeleteChange?.(false);
       }
+      return true;
     },
-    [settings, handleUpdateSignatures, onLazyDeleteChange],
+    [handleApplyReconciliation, onLazyDeleteChange, settings, signaturesRef],
   );
 
   const handleDeleteSelected = useCallback(async () => {
@@ -98,7 +103,8 @@ export const useSystemSignaturesData = ({
     setSelectedSignatures,
     handleDeleteSelected,
     handleSelectAll,
-    handlePaste,
+    prepareReconciliation,
+    applyReconciliation,
     hasUnsupportedLanguage,
   };
 };

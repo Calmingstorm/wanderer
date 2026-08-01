@@ -157,13 +157,19 @@ defmodule WandererAppWeb.MapPingsEventHandler do
           socket
       )
       when not is_nil(main_character_id) do
-    map_id
-    |> WandererApp.Map.Server.cancel_ping(%{
-      id: id,
-      type: type,
-      character_id: main_character_id,
-      user_id: current_user.id
-    })
+    case WandererAppWeb.HandlerAuth.authorize_ping(id, map_id) do
+      {:ok, _ping} ->
+        map_id
+        |> WandererApp.Map.Server.cancel_ping(%{
+          id: id,
+          type: type,
+          character_id: main_character_id,
+          user_id: current_user.id
+        })
+
+      {:error, :not_found} ->
+        Logger.warning("cancel_ping rejected: ping #{inspect(id)} not on map #{map_id}")
+    end
 
     {:noreply, socket}
   end
@@ -236,8 +242,8 @@ defmodule WandererAppWeb.MapPingsEventHandler do
   # Catch-all for cancel_ping to debug why it doesn't match
   def handle_ui_event(
         "cancel_ping",
-        event,
-        %{assigns: assigns} = socket
+        _event,
+        socket
       ) do
     {:noreply, socket}
   end

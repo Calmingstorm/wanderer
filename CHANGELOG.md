@@ -2,6 +2,59 @@
 
 <!-- changelog -->
 
+## [v1.101.11](https://github.com/wanderer-industries/wanderer/compare/v1.101.10...v1.101.11) (2026-08-11)
+
+
+
+
+### Bug Fixes:
+
+* test: address upstream review findings
+
+* map: match Ash-wrapped NotFound in MapRepo.get/2
+
+* map: stop MapRepo.get/2 masking all errors as :not_found
+
+## [v1.101.10](https://github.com/wanderer-industries/wanderer/compare/v1.101.9...v1.101.10) (2026-08-10)
+
+
+
+
+## [v1.101.9](https://github.com/wanderer-industries/wanderer/compare/v1.101.8...v1.101.9) (2026-08-10)
+
+
+
+
+## [v1.101.8](https://github.com/wanderer-industries/wanderer/compare/v1.101.7...v1.101.8) (2026-08-10)
+
+
+
+
+## [v1.101.7](https://github.com/wanderer-industries/wanderer/compare/v1.101.6...v1.101.7) (2026-07-17)
+
+
+
+
+## [v1.101.6](https://github.com/wanderer-industries/wanderer/compare/v1.101.5...v1.101.6) (2026-07-17)
+
+
+
+
+### Bug Fixes:
+
+* authorize client-supplied IDs in LiveView handlers (IDOR audit)
+
+## [v1.101.5](https://github.com/wanderer-industries/wanderer/compare/v1.101.4...v1.101.5) (2026-07-17)
+
+
+
+
+### Bug Fixes:
+
+* core: Added Large theme and High-contrast large theme
+
+* core: Added prototype theme for colorblind person
+
 ## [v1.101.4](https://github.com/wanderer-industries/wanderer/compare/v1.101.3...v1.101.4) (2026-07-09)
 
 

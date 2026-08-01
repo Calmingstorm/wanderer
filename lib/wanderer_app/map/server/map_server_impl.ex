@@ -447,14 +447,16 @@ defmodule WandererApp.Map.Server.Impl do
   end
 
   def broadcast!(map_id, event, payload \\ nil) do
-    if can_broadcast?(map_id) do
-      @pubsub_client.broadcast!(WandererApp.PubSub, map_id, %{
-        event: event,
-        payload: payload
-      })
-    end
+    WandererApp.Repo.TransactionNotifications.defer(fn ->
+      if can_broadcast?(map_id) do
+        @pubsub_client.broadcast!(WandererApp.PubSub, map_id, %{
+          event: event,
+          payload: payload
+        })
+      end
 
-    :ok
+      :ok
+    end)
   end
 
   defp can_broadcast?(map_id),

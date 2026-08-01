@@ -56,7 +56,6 @@ export const MapWrapper = () => {
     isShowKSpace,
     isThickConnections,
     isShowBackgroundPattern,
-    isShowUnsplashedSignatures,
     isSoftBackground,
     theme,
     minimapPlacement,
@@ -66,7 +65,7 @@ export const MapWrapper = () => {
   const { mapRef, runCommand } = useCommonMapEventProcessor();
   const { getNodes } = useReactFlow();
 
-  const { updateLinkSignatureToSystem } = useCommandsSystems();
+  const { updateLinkSignatureToSystem, updateSystemSignatures } = useCommandsSystems();
   const { open, ...systemContextProps } = useContextMenuSystemHandlers({ systems, hubs, userHubs, outCommand });
   const { handleSystemMultipleContext, ...systemMultipleCtxProps } = useContextMenuSystemMultipleHandlers();
 
@@ -97,6 +96,11 @@ export const MapWrapper = () => {
 
   useMapEventListener(event => {
     runCommand(event);
+
+    if (event.name === Commands.signaturesUpdated) {
+      void updateSystemSignatures(String(event.data));
+      return true;
+    }
 
     if (event.name === Commands.init) {
       const { selectedSystems } = ref.current;
@@ -240,12 +244,12 @@ export const MapWrapper = () => {
 
   useEffect(() => {
     const { systemSignatures, systems } = ref.current;
-    if (!isShowUnsplashedSignatures || Object.keys(systemSignatures).length !== 0 || systems?.length === 0) {
+    if (Object.keys(systemSignatures).length !== 0 || systems?.length === 0) {
       return;
     }
 
     outCommand({ type: OutCommand.loadSignatures, data: {} });
-  }, [isShowUnsplashedSignatures, systems]);
+  }, [outCommand, systems]);
 
   const { showMinimap, minimapPosition, minimapClasses } = useMemo(() => {
     const rawPlacement = minimapPlacement == null ? MiniMapPlacement.rightBottom : minimapPlacement;
