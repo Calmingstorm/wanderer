@@ -3,17 +3,28 @@ import { SETTINGS_KEYS, SIGNATURE_WINDOW_ID, SignatureSettingsType } from '@/hoo
 import { useHotkey } from '@/hooks/Mapper/hooks/useHotkey';
 import { useMapRootState } from '@/hooks/Mapper/mapRootProvider';
 import { useCallback, useMemo, useState } from 'react';
+import { parseSignatures } from '@/hooks/Mapper/helpers';
+import {
+  getSignaturePasteLocationWarning,
+  SignaturePasteLocationWarning,
+} from '@/hooks/Mapper/helpers/signaturePasteGuard';
+import { SignatureKind } from '@/hooks/Mapper/types';
 import { useSignatureUndo } from './hooks/useSignatureUndo';
 import { useSystemSignaturesData } from './hooks/useSystemSignaturesData';
 import { SystemSignaturesHeader } from './SystemSignatureHeader';
 import { SystemSignaturesContent } from './SystemSignaturesContent';
 import { SystemSignatureSettingsDialog } from './SystemSignatureSettingsDialog';
+import { SignaturePasteLocationDialog } from './SignaturePasteLocationDialog';
 
 export const SystemSignatures = () => {
   const [showSettings, setShowSettings] = useState(false);
+  const [pendingPaste, setPendingPaste] = useState<{
+    clipboardString: string;
+    warning: SignaturePasteLocationWarning;
+  } | null>(null);
 
   const {
-    data: { selectedSystems },
+    data: { characters, followingCharacterEveId, mainCharacterEveId, selectedSystems, systems, userCharacters },
     outCommand,
     storedSettings: { settingsSignatures, settingsSignaturesUpdate },
   } = useMapRootState();
@@ -44,6 +55,49 @@ export const SystemSignatures = () => {
     settings: settingsSignatures,
     onLazyDeleteChange: handleLazyDeleteToggle,
   });
+
+  const pasteLocationWarning = useMemo(
+    () =>
+      getSignaturePasteLocationWarning({
+        characters,
+        followingCharacterEveId,
+        mainCharacterEveId,
+        selectedMapSystemId: systemId,
+        systems,
+        userCharacters,
+      }),
+    [characters, followingCharacterEveId, mainCharacterEveId, systemId, systems, userCharacters],
+  );
+
+  const handleGuardedPaste = useCallback(
+    (clipboardString: string) => {
+      const parsedSignatures = parseSignatures(
+        clipboardString,
+        Object.keys(settingsSignatures).filter(settingKey => settingKey in SignatureKind),
+      );
+
+      if (parsedSignatures.length === 0) {
+        return;
+      }
+
+      if (pasteLocationWarning) {
+        setPendingPaste({ clipboardString, warning: pasteLocationWarning });
+        return;
+      }
+
+      void handlePaste(clipboardString);
+    },
+    [handlePaste, pasteLocationWarning, settingsSignatures],
+  );
+
+  const handleConfirmPaste = useCallback(() => {
+    if (pendingPaste && systemId === pendingPaste.warning.selectedMapSystemId) {
+      void handlePaste(pendingPaste.clipboardString);
+    }
+    setPendingPaste(null);
+  }, [handlePaste, pendingPaste, systemId]);
+
+  const handleCancelPaste = useCallback(() => setPendingPaste(null), []);
 
   const sigCount = useMemo(() => signatures.length, [signatures]);
   const deletedSignatures = useMemo(() => signatures.filter(s => s.deleted), [signatures]);
@@ -95,7 +149,7 @@ export const SystemSignatures = () => {
           onSelectSignatures={setSelectedSignatures}
           onDeleteSelected={handleDeleteSelected}
           onSelectAll={handleSelectAll}
-          onPaste={handlePaste}
+          onPaste={handleGuardedPaste}
           hasUnsupportedLanguage={hasUnsupportedLanguage}
           settings={settingsSignatures}
         />
@@ -106,6 +160,14 @@ export const SystemSignatures = () => {
           settings={settingsSignatures}
           onCancel={() => setShowSettings(false)}
           onSave={handleSettingsSave}
+        />
+      )}
+
+      {pendingPaste && (
+        <SignaturePasteLocationDialog
+          warning={pendingPaste.warning}
+          onCancel={handleCancelPaste}
+          onConfirm={handleConfirmPaste}
         />
       )}
     </Widget>
