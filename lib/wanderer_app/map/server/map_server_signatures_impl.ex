@@ -48,6 +48,146 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
 
   def update_signatures(_map_id, _), do: :ok
 
+  @doc """
+  Captures the durable identity and version of an active signature for a delayed
+  removal. Both fields are required so that deleting and recreating an otherwise
+  identical scanner row invalidates the pending removal.
+  """
+  def removal_baseline(map_id, solar_system_id, eve_id) do
+    with {:ok, system} <-
+           MapSystem.read_by_map_and_solar_system(%{
+             map_id: map_id,
+             solar_system_id: solar_system_id
+           }),
+         %MapSystemSignature{} = signature <-
+           system.id
+           |> MapSystemSignature.by_system_id!()
+           |> Enum.find(&(&1.eve_id == eve_id)) do
+      %{
+        id: signature.id,
+        updated_at: normalize_signature_version(signature.updated_at),
+        state: signature_state(signature)
+      }
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Removes a delayed signature only while the locked database row still matches
+  the identity, version, and content captured when removal was scheduled.
+  """
+  def remove_signature_if_unchanged(
+        map_id,
+        %{
+          solar_system_id: solar_system_id,
+          character_id: character_id,
+          user_id: user_id,
+          delete_connection_with_sigs: delete_conn?,
+          signature: signature,
+          baseline: baseline
+        }
+      )
+      when is_map(baseline) and not is_nil(character_id) do
+    with {:ok, system} <-
+           MapSystem.read_by_map_and_solar_system(%{
+             map_id: map_id,
+             solar_system_id: solar_system_id
+           }) do
+      WandererApp.Repo.transaction(fn ->
+        case locked_signature_state(system.id, signature["eve_id"]) do
+          current when current == baseline ->
+            do_update_signatures(
+              map_id,
+              system,
+              character_id,
+              user_id,
+              delete_conn?,
+              [],
+              [],
+              [signature]
+            )
+
+            :removed
+
+          _ ->
+            :stale
+        end
+      end)
+      |> case do
+        {:ok, result} -> result
+        {:error, reason} ->
+          Logger.error("Guarded signature removal failed: #{inspect(reason)}")
+          {:error, reason}
+      end
+    else
+      _ -> :stale
+    end
+  end
+
+  def remove_signature_if_unchanged(_map_id, _params), do: :stale
+
+  defp locked_signature_state(system_id, eve_id) do
+    sql = """
+    SELECT id, updated_at, eve_id, character_eve_id, name, temporary_name,
+           description, kind, "group", type, custom_info, linked_system_id, deleted
+    FROM map_system_signatures_v1
+    WHERE system_id = $1 AND eve_id = $2 AND deleted = false
+    FOR UPDATE
+    """
+
+    system_id = Ecto.UUID.dump!(system_id)
+
+    case Ecto.Adapters.SQL.query(WandererApp.Repo, sql, [system_id, eve_id]) do
+      {:ok, %{rows: [[id, updated_at, eve_id, character_eve_id, name, temporary_name,
+                      description, kind, group, type, custom_info, linked_system_id, deleted]]}} ->
+        %{
+          id: Ecto.UUID.load!(id),
+          updated_at: normalize_signature_version(updated_at),
+          state: %{
+            eve_id: eve_id,
+            character_eve_id: character_eve_id,
+            name: name,
+            temporary_name: temporary_name,
+            description: description,
+            kind: kind,
+            group: group,
+            type: type,
+            custom_info: custom_info,
+            linked_system_id: linked_system_id,
+            deleted: deleted
+          }
+        }
+
+      _ ->
+        nil
+    end
+  end
+
+  defp signature_state(signature) do
+    Map.take(signature, [
+      :eve_id,
+      :character_eve_id,
+      :name,
+      :temporary_name,
+      :description,
+      :kind,
+      :group,
+      :type,
+      :custom_info,
+      :linked_system_id,
+      :deleted
+    ])
+  end
+
+  defp normalize_signature_version(%DateTime{} = value),
+    do: value |> DateTime.to_naive() |> NaiveDateTime.to_iso8601()
+
+  defp normalize_signature_version(%NaiveDateTime{} = value),
+    do: NaiveDateTime.to_iso8601(value)
+
+  defp normalize_signature_version(value), do: to_string(value)
+
   defp do_update_signatures(
          map_id,
          system,

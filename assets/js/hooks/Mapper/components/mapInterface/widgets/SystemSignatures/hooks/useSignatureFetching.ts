@@ -4,7 +4,7 @@ import { ExtendedSystemSignature, SystemSignature } from '@/hooks/Mapper/types';
 import { OutCommand } from '@/hooks/Mapper/types/mapHandlers';
 import { useCallback, useMemo } from 'react';
 import { getDeletionTimeoutMs } from '../constants';
-import { getActualSigs, prepareUpdatePayload, SignatureReconciliation } from '../helpers';
+import { getActualSigs, isReconciliationApplied, prepareUpdatePayload, SignatureReconciliation } from '../helpers';
 import { UseFetchingParams } from './types';
 
 export const useSignatureFetching = ({ systemId, settings, signaturesRef, setSignatures }: UseFetchingParams) => {
@@ -60,7 +60,11 @@ export const useSignatureFetching = ({ systemId, settings, signaturesRef, setSig
   const handleApplyReconciliation = useCallback(
     async (reconciliation: SignatureReconciliation, deleteConnections: boolean): Promise<boolean> => {
       if (String(systemId) !== reconciliation.systemId) return false;
-      if (reconciliation.added.length === 0 && reconciliation.changed.length === 0 && reconciliation.removed.length === 0) {
+      if (
+        reconciliation.added.length === 0 &&
+        reconciliation.changed.length === 0 &&
+        reconciliation.removed.length === 0
+      ) {
         return true;
       }
 
@@ -79,7 +83,7 @@ export const useSignatureFetching = ({ systemId, settings, signaturesRef, setSig
         },
       });
 
-      return response?.result !== 'stale' && response?.applied !== false;
+      return isReconciliationApplied(response);
     },
     [deleteTimeout, outCommand, systemId],
   );
