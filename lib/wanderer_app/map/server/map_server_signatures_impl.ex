@@ -6,7 +6,8 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
   alias WandererApp.Api.{MapSystem, MapSystemSignature}
   alias WandererApp.Character
   alias WandererApp.User.ActivityTracker
-  alias WandererApp.Map.Server.{Impl, ConnectionsImpl, SystemsImpl}
+  alias WandererApp.Map.Server.{ConnectionsImpl, Impl, SignatureSnapshot, SystemsImpl}
+  alias WandererApp.Repo.TransactionNotifications
   alias WandererApp.Utils.EVEUtil
 
   @doc """
@@ -25,28 +26,101 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
         }
       )
       when not is_nil(char_id) do
-    with {:ok, system} <-
-           MapSystem.read_by_map_and_solar_system(%{
+    TransactionNotifications.transaction(fn ->
+      case MapSystem.read_by_map_and_solar_system(%{
              map_id: map_id,
              solar_system_id: system_solar_id
            }) do
-      do_update_signatures(
-        map_id,
-        system,
-        char_id,
-        user_id,
-        delete_conn?,
-        added_params,
-        updated_params,
-        removed_params
-      )
-    else
-      error ->
-        Logger.warning("Skipping signature update: #{inspect(error)}")
+        {:ok, system} ->
+          lock_system_row!(system.id)
+
+          do_update_signatures(
+            map_id,
+            system,
+            char_id,
+            user_id,
+            delete_conn?,
+            added_params,
+            updated_params,
+            removed_params
+          )
+
+        error ->
+          Logger.warning("Skipping signature update: #{inspect(error)}")
+          :ok
+      end
+    end)
+    |> case do
+      {:ok, result} ->
+        result
+
+      {:error, reason} ->
+        Logger.error("Signature update transaction failed: #{inspect(reason)}")
+        :ok
     end
   end
 
   def update_signatures(_map_id, _), do: :ok
+
+  @doc """
+  Atomically reconciles additions and updates against a locked client snapshot.
+  Delayed removals are not applied here; durable baselines are returned only
+  after the transaction commits so the caller can safely schedule them.
+  """
+  def reconcile_signatures(
+        map_id,
+        %{
+          solar_system_id: system_solar_id,
+          character_id: char_id,
+          user_id: user_id,
+          added_signatures: added_params,
+          updated_signatures: updated_params,
+          removed_signatures: removed_params
+        } = params
+      )
+      when not is_nil(char_id) do
+    TransactionNotifications.transaction(fn ->
+      case MapSystem.read_by_map_and_solar_system(%{
+             map_id: map_id,
+             solar_system_id: system_solar_id
+           }) do
+        {:ok, system} ->
+          lock_system_row!(system.id)
+          locked_signatures = lock_active_signature_rows!(system.id)
+          pending_eve_ids = Map.get(params, :pending_eve_ids, MapSet.new())
+          expected = Map.get(params, :base_signatures)
+          current = SignatureSnapshot.current(locked_signatures, pending_eve_ids)
+
+          if is_nil(expected) or SignatureSnapshot.matches?(expected, current) do
+            baselines = removal_baselines(locked_signatures, removed_params)
+
+            do_update_signatures(
+              map_id,
+              system,
+              char_id,
+              user_id,
+              Map.get(params, :delete_connection_with_sigs, false),
+              added_params,
+              updated_params,
+              []
+            )
+
+            {:applied, baselines}
+          else
+            :stale
+          end
+
+        _ ->
+          :stale
+      end
+    end)
+    |> case do
+      {:ok, result} -> result
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  def reconcile_signatures(_map_id, _params), do: :stale
 
   @doc """
   Captures the durable identity and version of an active signature for a delayed
@@ -63,11 +137,7 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
            system.id
            |> MapSystemSignature.by_system_id!()
            |> Enum.find(&(&1.eve_id == eve_id)) do
-      %{
-        id: signature.id,
-        updated_at: normalize_signature_version(signature.updated_at),
-        state: signature_state(signature)
-      }
+      baseline(signature)
     else
       _ -> nil
     end
@@ -85,47 +155,74 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
           user_id: user_id,
           delete_connection_with_sigs: delete_conn?,
           signature: signature,
-          baseline: baseline
+          baseline: expected_baseline
         }
       )
-      when is_map(baseline) and not is_nil(character_id) do
-    with {:ok, system} <-
-           MapSystem.read_by_map_and_solar_system(%{
+      when is_map(expected_baseline) and not is_nil(character_id) do
+    TransactionNotifications.transaction(fn ->
+      case MapSystem.read_by_map_and_solar_system(%{
              map_id: map_id,
              solar_system_id: solar_system_id
            }) do
-      WandererApp.Repo.transaction(fn ->
-        case locked_signature_state(system.id, signature["eve_id"]) do
-          current when current == baseline ->
-            do_update_signatures(
-              map_id,
-              system,
-              character_id,
-              user_id,
-              delete_conn?,
-              [],
-              [],
-              [signature]
-            )
+        {:ok, system} ->
+          lock_system_row!(system.id)
 
-            :removed
+          case locked_signature_state(system.id, signature["eve_id"]) do
+            current when current == expected_baseline ->
+              do_update_signatures(
+                map_id,
+                system,
+                character_id,
+                user_id,
+                delete_conn?,
+                [],
+                [],
+                [signature]
+              )
 
-          _ ->
-            :stale
-        end
-      end)
-      |> case do
-        {:ok, result} -> result
-        {:error, reason} ->
-          Logger.error("Guarded signature removal failed: #{inspect(reason)}")
-          {:error, reason}
+              :removed
+
+            _ ->
+              :stale
+          end
+
+        _ ->
+          :stale
       end
-    else
-      _ -> :stale
+    end)
+    |> case do
+      {:ok, result} ->
+        result
+
+      {:error, reason} ->
+        Logger.error("Guarded signature removal failed: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 
   def remove_signature_if_unchanged(_map_id, _params), do: :stale
+
+  defp lock_system_row!(system_id) do
+    sql = "SELECT id FROM map_system_v1 WHERE id = $1 FOR UPDATE"
+    %{num_rows: 1} = Ecto.Adapters.SQL.query!(WandererApp.Repo, sql, [dump_uuid(system_id)])
+    :ok
+  end
+
+  defp lock_active_signature_rows!(system_id) do
+    sql = """
+    SELECT id, updated_at, eve_id, character_eve_id, name, temporary_name,
+           description, kind, "group", type, custom_info, linked_system_id, deleted
+    FROM map_system_signatures_v1
+    WHERE system_id = $1 AND deleted = false
+    ORDER BY id
+    FOR UPDATE
+    """
+
+    WandererApp.Repo
+    |> Ecto.Adapters.SQL.query!(sql, [dump_uuid(system_id)])
+    |> Map.fetch!(:rows)
+    |> Enum.map(&locked_signature_from_row/1)
+  end
 
   defp locked_signature_state(system_id, eve_id) do
     sql = """
@@ -136,32 +233,62 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
     FOR UPDATE
     """
 
-    system_id = Ecto.UUID.dump!(system_id)
-
-    case Ecto.Adapters.SQL.query(WandererApp.Repo, sql, [system_id, eve_id]) do
-      {:ok, %{rows: [[id, updated_at, eve_id, character_eve_id, name, temporary_name,
-                      description, kind, group, type, custom_info, linked_system_id, deleted]]}} ->
-        %{
-          id: Ecto.UUID.load!(id),
-          updated_at: normalize_signature_version(updated_at),
-          state: %{
-            eve_id: eve_id,
-            character_eve_id: character_eve_id,
-            name: name,
-            temporary_name: temporary_name,
-            description: description,
-            kind: kind,
-            group: group,
-            type: type,
-            custom_info: custom_info,
-            linked_system_id: linked_system_id,
-            deleted: deleted
-          }
-        }
-
-      _ ->
-        nil
+    case Ecto.Adapters.SQL.query!(WandererApp.Repo, sql, [dump_uuid(system_id), eve_id]).rows do
+      [row] -> row |> locked_signature_from_row() |> baseline()
+      _ -> nil
     end
+  end
+
+  defp locked_signature_from_row([
+         id,
+         updated_at,
+         eve_id,
+         character_eve_id,
+         name,
+         temporary_name,
+         description,
+         kind,
+         group,
+         type,
+         custom_info,
+         linked_system_id,
+         deleted
+       ]) do
+    %{
+      id: Ecto.UUID.load!(id),
+      updated_at: updated_at,
+      eve_id: eve_id,
+      character_eve_id: character_eve_id,
+      name: name,
+      temporary_name: temporary_name,
+      description: description,
+      kind: kind,
+      group: group,
+      type: type,
+      custom_info: custom_info,
+      linked_system_id: linked_system_id,
+      deleted: deleted
+    }
+  end
+
+  defp removal_baselines(locked_signatures, removed_params) do
+    locked_by_eve_id = Map.new(locked_signatures, &{&1.eve_id, &1})
+
+    Map.new(removed_params, fn signature ->
+      eve_id = signature["eve_id"]
+      {eve_id, locked_by_eve_id |> Map.get(eve_id) |> maybe_baseline()}
+    end)
+  end
+
+  defp maybe_baseline(nil), do: nil
+  defp maybe_baseline(signature), do: baseline(signature)
+
+  defp baseline(signature) do
+    %{
+      id: signature.id,
+      updated_at: normalize_signature_version(signature.updated_at),
+      state: signature_state(signature)
+    }
   end
 
   defp signature_state(signature) do
@@ -187,6 +314,8 @@ defmodule WandererApp.Map.Server.SignaturesImpl do
     do: NaiveDateTime.to_iso8601(value)
 
   defp normalize_signature_version(value), do: to_string(value)
+
+  defp dump_uuid(value), do: Ecto.UUID.dump!(value)
 
   defp do_update_signatures(
          map_id,
