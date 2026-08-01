@@ -44,7 +44,7 @@ export const SignatureReconciliationDialog = ({
     <Dialog header="Review scanner synchronization" visible modal draggable={false} resizable={false} style={{ width: '680px', maxWidth: 'calc(100vw - 32px)' }} onHide={onCancel}>
       <div className="flex flex-col gap-4">
         <div className="rounded border border-sky-700/50 bg-sky-950/20 p-3 text-sm text-stone-300">
-          Nothing has been changed. Review the exact reconciliation below before committing it.
+          Nothing has been changed. Review the proposed reconciliation below before committing it.
         </div>
 
         <WdCheckbox
@@ -65,9 +65,9 @@ export const SignatureReconciliationDialog = ({
           <div className="rounded border border-red-700/60 bg-red-950/25 p-3">
             <div className="mb-2 text-sm font-semibold text-red-300">Affected links ({reconciliation.affectedLinks.length})</div>
             <div className="mb-3 text-xs text-stone-300">
-              Removing these signatures unlinks their signature records. Map connections remain intact unless the explicit option below is enabled.
+              Removing a linked signature also removes the reciprocal/backlink signature in the linked system. Affected linked systems are shown below when counterpart data is available. The map connection remains unless the explicit option below is enabled.
             </div>
-            <SignatureList label="Linked signatures" signatures={reconciliation.affectedLinks} tone="text-red-300" />
+            <SignatureList label="Linked signatures and affected systems" signatures={reconciliation.affectedLinks} tone="text-red-300" />
             <div className="mt-3">
               <WdCheckbox
                 id="signature-delete-connections"

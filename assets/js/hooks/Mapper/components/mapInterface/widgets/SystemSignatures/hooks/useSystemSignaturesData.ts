@@ -44,18 +44,19 @@ export const useSystemSignaturesData = ({
 
       // Scanner reconciliation always opens in update-only mode. Removing signatures
       // requires an explicit choice in the preview, regardless of prior lazy-delete settings.
-      return buildSignatureReconciliation(signaturesRef.current, incomingSignatures, false);
+      return buildSignatureReconciliation(signaturesRef.current, incomingSignatures, false, String(systemId));
     },
-    [settings, signaturesRef],
+    [settings, signaturesRef, systemId],
   );
 
   const applyReconciliation = useCallback(
     async (reconciliation: SignatureReconciliation, deleteConnections: boolean): Promise<boolean> => {
-      if (getSignatureStateFingerprint(signaturesRef.current) !== reconciliation.baseFingerprint) {
+      if (String(systemId) !== reconciliation.systemId || getSignatureStateFingerprint(signaturesRef.current) !== reconciliation.baseFingerprint) {
         return false;
       }
 
-      await handleApplyReconciliation(reconciliation, deleteConnections);
+      const applied = await handleApplyReconciliation(reconciliation, deleteConnections);
+      if (!applied) return false;
 
       const keepLazy = settings[SETTINGS_KEYS.KEEP_LAZY_DELETE] as boolean;
       if (reconciliation.fullSync && !keepLazy) {

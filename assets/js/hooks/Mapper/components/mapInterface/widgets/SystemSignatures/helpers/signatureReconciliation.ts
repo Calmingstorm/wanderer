@@ -6,7 +6,24 @@ export interface SignatureChange {
   after: SystemSignature;
 }
 
+export interface CanonicalSignatureSnapshot {
+  eve_id: string;
+  group: SignatureGroup;
+  kind: SignatureKind;
+  name: string;
+  type: string;
+  description: string | null;
+  custom_info: unknown;
+  temporary_name: string | null;
+  character_eve_id: string | null;
+  linked_system_id: number | null;
+  deleted: boolean;
+}
+
 export interface SignatureReconciliation {
+  systemId: string;
+  baseSignaturesRaw: SystemSignature[];
+  baseSignatures: CanonicalSignatureSnapshot[];
   incoming: SystemSignature[];
   added: SystemSignature[];
   changed: SignatureChange[];
@@ -22,25 +39,36 @@ export interface SignatureScanProgress {
   percent: number;
 }
 
-const fingerprintSignature = (signature: SystemSignature) => ({
+const canonicalCustomInfo = (customInfo?: string): unknown => {
+  if (!customInfo) return null;
+  try {
+    return JSON.parse(customInfo);
+  } catch {
+    return customInfo;
+  }
+};
+
+const canonicalSignature = (signature: SystemSignature): CanonicalSignatureSnapshot => ({
   eve_id: signature.eve_id,
   group: signature.group,
   kind: signature.kind,
   name: signature.name,
   type: signature.type,
-  description: signature.description,
-  custom_info: signature.custom_info,
-  linked_system_id: signature.linked_system?.solar_system_id,
-  deleted: signature.deleted,
-  updated_at: signature.updated_at,
+  description: signature.description ?? null,
+  custom_info: canonicalCustomInfo(signature.custom_info),
+  temporary_name: signature.temporary_name ?? null,
+  character_eve_id: signature.character_eve_id ?? null,
+  linked_system_id: signature.linked_system?.solar_system_id ?? null,
+  deleted: !!signature.deleted,
 });
 
+export const getCanonicalSignatureSnapshot = (signatures: SystemSignature[]): CanonicalSignatureSnapshot[] =>
+  signatures
+    .map(canonicalSignature)
+    .sort((left, right) => left.eve_id.localeCompare(right.eve_id));
+
 export const getSignatureStateFingerprint = (signatures: SystemSignature[]): string =>
-  JSON.stringify(
-    signatures
-      .map(fingerprintSignature)
-      .sort((left, right) => left.eve_id.localeCompare(right.eve_id)),
-  );
+  JSON.stringify(getCanonicalSignatureSnapshot(signatures));
 
 /**
  * Build the exact mutation set that a scanner paste would send to the server.
@@ -50,6 +78,7 @@ export const buildSignatureReconciliation = (
   existing: SystemSignature[],
   incoming: SystemSignature[],
   fullSync: boolean,
+  systemId: string,
 ): SignatureReconciliation => {
   const { added, updated, removed } = getActualSigs(existing, incoming, !fullSync, true);
   const existingById = new Map(existing.map(signature => [signature.eve_id, signature]));
@@ -59,6 +88,9 @@ export const buildSignatureReconciliation = (
   });
 
   return {
+    systemId,
+    baseSignaturesRaw: existing.map(signature => ({ ...signature })),
+    baseSignatures: getCanonicalSignatureSnapshot(existing),
     incoming,
     added,
     changed,
