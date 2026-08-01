@@ -76,22 +76,41 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
 
   def handle_server_event(
         %{event: :remove_signatures, payload: {solar_system_id, removed_signatures}},
+        socket
+      ),
+      do:
+        handle_server_event(
+          %{
+            event: :remove_signatures,
+            payload: {solar_system_id, removed_signatures, :use_user_setting}
+          },
+          socket
+        )
+
+  def handle_server_event(
+        %{
+          event: :remove_signatures,
+          payload: {solar_system_id, removed_signatures, delete_connections?}
+        },
         %{
           assigns: %{
             current_user: %{id: current_user_id},
             main_character_id: main_character_id,
             map_id: map_id,
             map_user_settings: map_user_settings,
-            removed_sig_eve_ids: removed_sig_eve_ids
+            removed_sig_eve_ids: removed_sig_eve_ids,
+            user_permissions: user_permissions
           }
         } = socket
       ) do
     solar_system_id = get_integer(solar_system_id)
 
     delete_connection_with_sigs =
-      map_user_settings
-      |> WandererApp.MapUserSettingsRepo.to_form_data!()
-      |> WandererApp.MapUserSettingsRepo.get_boolean_setting("delete_connection_with_sigs")
+      delete_connections_for_removal?(
+        delete_connections?,
+        map_user_settings,
+        user_permissions
+      )
 
 to_remove = removed_signatures |> Enum.filter(fn %{"eve_id" => eve_id} -> "#{solar_system_id}_#{eve_id}" in removed_sig_eve_ids end)
 
@@ -118,6 +137,29 @@ to_remove = removed_signatures |> Enum.filter(fn %{"eve_id" => eve_id} -> "#{sol
       sig_id in Enum.map(to_remove_eve_ids, &("#{solar_system_id}_#{&1}")) 
     end)
     )
+  end
+
+  @doc false
+  def delete_connections_for_removal?(mode, map_user_settings, user_permissions) do
+    can_delete_connection? = Map.get(user_permissions, :delete_connection, false)
+
+    requested? =
+      case mode do
+        true ->
+          true
+
+        :use_user_setting ->
+          map_user_settings
+          |> WandererApp.MapUserSettingsRepo.to_form_data!()
+          |> WandererApp.MapUserSettingsRepo.get_boolean_setting(
+            "delete_connection_with_sigs"
+          )
+
+        _ ->
+          false
+      end
+
+    requested? and can_delete_connection?
   end
 
   def handle_server_event(event, socket),
@@ -163,7 +205,7 @@ to_remove = removed_signatures |> Enum.filter(fn %{"eve_id" => eve_id} -> "#{sol
           "updated" => updated_signatures,
           "removed" => removed_signatures,
           "deleteTimeout" => delete_timeout
-        },
+        } = event,
         %{
           assigns:
             %{
@@ -184,9 +226,17 @@ to_remove = removed_signatures |> Enum.filter(fn %{"eve_id" => eve_id} -> "#{sol
       removed_signatures
       |> Enum.map(fn %{"eve_id" => eve_id} -> eve_id end)
 
+    delete_connections? =
+      if Map.has_key?(event, "deleteConnections"),
+        do: Map.get(event, "deleteConnections") == true,
+        else: :use_user_setting
+
     Process.send_after(
       self(),
-      %{event: :remove_signatures, payload: {solar_system_id, removed_signatures}},
+      %{
+        event: :remove_signatures,
+        payload: {solar_system_id, removed_signatures, delete_connections?}
+      },
       delete_timeout
     )
 
