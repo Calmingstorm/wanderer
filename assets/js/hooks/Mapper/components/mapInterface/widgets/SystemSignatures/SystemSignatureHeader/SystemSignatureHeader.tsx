@@ -13,9 +13,11 @@ import { WdTooltipWrapper } from '@/hooks/Mapper/components/ui-kit/WdTooltipWrap
 import useMaxWidth from '@/hooks/Mapper/hooks/useMaxWidth.ts';
 import { COMPACT_MAX_WIDTH } from '@/hooks/Mapper/components/mapInterface/widgets/SystemSignatures/constants.ts';
 import { useMapRootState } from '@/hooks/Mapper/mapRootProvider';
+import { SignatureScanProgress } from '../helpers';
 
 export type HeaderProps = {
   sigCount: number;
+  scanProgress: SignatureScanProgress;
   lazyDeleteValue: boolean;
   onLazyDeleteChange: (checked: boolean) => void;
   pendingCount: number;
@@ -26,6 +28,7 @@ export type HeaderProps = {
 
 export const SystemSignaturesHeader = ({
   sigCount,
+  scanProgress,
   lazyDeleteValue,
   onLazyDeleteChange,
   pendingCount,
@@ -53,6 +56,13 @@ export const SystemSignaturesHeader = ({
             </div>
           )}
           {!isNotSelectedSystem && <SystemView systemId={systemId} className="select-none text-center" hideRegion />}
+          {!isNotSelectedSystem && scanProgress.total > 0 && (
+            <WdTooltipWrapper content={`${scanProgress.scanned} / ${scanProgress.total} signatures scanned`}>
+              <span className={`whitespace-nowrap font-semibold ${scanProgress.percent === 100 ? 'text-emerald-400' : scanProgress.percent < 30 ? 'text-red-400' : 'text-amber-400'}`}>
+                {scanProgress.percent}%
+              </span>
+            </WdTooltipWrapper>
+          )}
         </div>
 
         <LayoutEventBlocker className="flex gap-2.5">

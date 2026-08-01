@@ -158,6 +158,16 @@ export const SolarSystemNodeDefault = memo((props: NodeProps<MapSolarSystemType>
                   )}
                 </div>
 
+                {nodeVars.scanProgress.total > 0 && (
+                  <WdTooltipWrapper
+                    position={TooltipPosition.top}
+                    content={`${nodeVars.scanProgress.scanned} / ${nodeVars.scanProgress.total} signatures scanned`}
+                  >
+                    <span className={clsx('text-[9px] font-semibold', nodeVars.scanProgress.percent === 100 ? 'text-emerald-300' : 'text-amber-300')}>
+                      {nodeVars.scanProgress.percent}%
+                    </span>
+                  </WdTooltipWrapper>
+                )}
                 <LocalCounter
                   hasUserCharacters={nodeVars.hasUserCharacters}
                   localCounterCharacters={localCounterCharacters}
