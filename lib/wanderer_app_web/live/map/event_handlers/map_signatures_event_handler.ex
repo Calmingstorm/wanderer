@@ -133,17 +133,25 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
         user_permissions
       )
 
-    WandererApp.Map.Server.update_signatures(map_id, %{
-      solar_system_id: get_integer(solar_system_id),
-      character_id: main_character_id,
-      user_id: current_user_id,
-      delete_connection_with_sigs: delete_connection_with_sigs,
-      added_signatures: [],
-      updated_signatures: [],
-      removed_signatures: removed_signatures
-    })
+    result =
+      SignaturesImpl.update_signatures_checked(map_id, %{
+        solar_system_id: get_integer(solar_system_id),
+        character_id: main_character_id,
+        user_id: current_user_id,
+        delete_connection_with_sigs: delete_connection_with_sigs,
+        added_signatures: [],
+        updated_signatures: [],
+        removed_signatures: removed_signatures
+      })
 
-    socket
+    case result do
+      :ok ->
+        socket
+
+      {:error, reason} ->
+        Logger.error("Legacy delayed signature removal failed: #{inspect(reason)}")
+        MapEventHandler.push_map_event(socket, "signatures_updated", get_integer(solar_system_id))
+    end
   end
 
   def handle_server_event(
@@ -282,28 +290,33 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
         # Old clients predate reconciliation snapshots and explicit connection policy.
         # Keep their historical delayed-removal semantics, but never let a crafted
         # new request with deleteConnections fall through this compatibility path.
-        WandererApp.Map.Server.update_signatures(map_id, %{
-          solar_system_id: solar_system_id,
-          character_id: main_character_id,
-          user_id: current_user_id,
-          delete_connection_with_sigs: false,
-          added_signatures: added_signatures,
-          updated_signatures: updated_signatures,
-          removed_signatures: []
-        })
+        case SignaturesImpl.update_signatures_checked(map_id, %{
+               solar_system_id: solar_system_id,
+               character_id: main_character_id,
+               user_id: current_user_id,
+               delete_connection_with_sigs: false,
+               added_signatures: added_signatures,
+               updated_signatures: updated_signatures,
+               removed_signatures: []
+             }) do
+          :ok ->
+            if removed_signatures != [] do
+              Process.send_after(
+                self(),
+                %{
+                  event: :legacy_remove_signatures,
+                  payload: {solar_system_id, removed_signatures}
+                },
+                max(get_integer(delete_timeout) || 0, 0)
+              )
+            end
 
-        if removed_signatures != [] do
-          Process.send_after(
-            self(),
-            %{
-              event: :legacy_remove_signatures,
-              payload: {solar_system_id, removed_signatures}
-            },
-            max(get_integer(delete_timeout) || 0, 0)
-          )
+            {:reply, %{result: "applied", applied: true}, socket}
+
+          {:error, reason} ->
+            Logger.error("Legacy signature update failed: #{inspect(reason)}")
+            {:reply, %{result: "error", applied: false}, socket}
         end
-
-        {:reply, %{result: "applied", applied: true}, socket}
 
       :guarded ->
         result =
