@@ -130,7 +130,7 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
     pending = pending_removals(socket.assigns)
 
     case pending_removal_matches?(pending, key, token) do
-      {:ok, %{delete_connections: delete_connections?}} ->
+      {:ok, %{delete_connections: delete_connections?, baseline: baseline}} ->
         delete_connection_with_sigs =
           delete_connections_for_removal?(
             delete_connections?,
@@ -138,15 +138,13 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
             user_permissions
           )
 
-        map_id
-        |> WandererApp.Map.Server.update_signatures(%{
+        SignaturesImpl.remove_signature_if_unchanged(map_id, %{
           solar_system_id: elem(key, 0),
           character_id: main_character_id,
           user_id: current_user_id,
           delete_connection_with_sigs: delete_connection_with_sigs,
-          added_signatures: [],
-          updated_signatures: [],
-          removed_signatures: [signature]
+          signature: signature,
+          baseline: baseline
         })
 
         assign(socket, pending_signature_removals: Map.delete(pending, key))
@@ -265,7 +263,13 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
             entry = %{
               token: token,
               signature: signature,
-              delete_connections: delete_connections?
+              delete_connections: delete_connections?,
+              baseline:
+                SignaturesImpl.removal_baseline(
+                  map_id,
+                  solar_system_id,
+                  signature["eve_id"]
+                )
             }
 
             {Map.put(acc, key, entry), [token | tokens]}
