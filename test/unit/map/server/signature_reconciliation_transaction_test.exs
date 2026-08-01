@@ -94,16 +94,59 @@ defmodule WandererApp.Map.Server.SignatureReconciliationTransactionTest do
     assert Enum.find(signatures, &(&1.eve_id == "BBB-222")).name == "Updated name"
   end
 
-  test "accepts the legacy request when base signatures are missing", context do
-    update = signature_dto(context.signature, %{"name" => "Legacy update"})
+  test "rejects missing or malformed guarded snapshots without changes", context do
+    update = signature_dto(context.signature, %{"name" => "Must not apply"})
+    params = reconciliation_params(context, %{updated_signatures: [update]})
 
-    assert {:applied, %{}} =
+    assert :stale = SignaturesImpl.reconcile_signatures(context.map.id, params)
+
+    assert :stale =
              SignaturesImpl.reconcile_signatures(
                context.map.id,
-               reconciliation_params(context, %{updated_signatures: [update]})
+               Map.put(params, :base_signatures, %{"not" => "a list"})
              )
 
-    assert [%{name: "Legacy update"}] = MapSystemSignature.by_system_id!(context.system.id)
+    assert [%{name: "Unstable Wormhole"}] =
+             MapSystemSignature.by_system_id!(context.system.id)
+  end
+
+  test "rolls back earlier creates when a later create is invalid", context do
+    base =
+      context.system.id
+      |> MapSystemSignature.by_system_id!()
+      |> SignatureSnapshot.current()
+
+    valid =
+      signature_dto(%{
+        "eve_id" => "BBB-222",
+        "character_eve_id" => context.character.eve_id,
+        "name" => "Would otherwise persist"
+      })
+
+    invalid = Map.put(valid, "eve_id", nil)
+
+    assert {:error, _reason} =
+             SignaturesImpl.reconcile_signatures(
+               context.map.id,
+               reconciliation_params(context, %{
+                 base_signatures: base,
+                 added_signatures: [valid, invalid]
+               })
+             )
+
+    assert [%{eve_id: "AAA-111", name: "Unstable Wormhole"}] =
+             MapSystemSignature.by_system_id!(context.system.id)
+  end
+
+  test "system lock ordering is deterministic and transaction errors are normalized" do
+    high = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    low = "00000000-0000-0000-0000-000000000001"
+
+    assert [^low, ^high] =
+             SignaturesImpl.deterministic_system_lock_order([high, low, high, nil])
+
+    assert {:exception, RuntimeError, "boom"} =
+             SignaturesImpl.normalize_transaction_error(%RuntimeError{message: "boom"})
   end
 
   defp reconciliation_params(context, overrides) do

@@ -3,6 +3,22 @@ defmodule WandererAppWeb.MapSignaturesReconciliationDeletionPolicyTest do
 
   alias WandererAppWeb.MapSignaturesEventHandler
 
+  test "handler routes only clearly legacy updates around snapshot reconciliation" do
+    assert :legacy = MapSignaturesEventHandler.signature_update_mode(%{})
+
+    assert :guarded =
+             MapSignaturesEventHandler.signature_update_mode(%{"baseSignatures" => []})
+
+    assert :guarded =
+             MapSignaturesEventHandler.signature_update_mode(%{"deleteConnections" => false})
+
+    assert :guarded =
+             MapSignaturesEventHandler.signature_update_mode(%{
+               "baseSignatures" => nil,
+               "deleteConnections" => true
+             })
+  end
+
   test "scanner synchronization keeps connections unless explicitly requested" do
     settings = %{settings: Jason.encode!(%{"delete_connection_with_sigs" => true})}
     permissions = %{delete_connection: true}
