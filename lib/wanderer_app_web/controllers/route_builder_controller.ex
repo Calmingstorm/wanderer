@@ -10,7 +10,8 @@ defmodule WandererAppWeb.RouteBuilderController do
       connections: Map.get(params, "connections") || Map.get(params, :connections) || [],
       avoid: Map.get(params, "avoid") || Map.get(params, :avoid) || [],
       count: Map.get(params, "count") || Map.get(params, :count) || 1,
-      type: Map.get(params, "type") || Map.get(params, :type) || "blueLoot"
+      type: Map.get(params, "type") || Map.get(params, :type) || "blueLoot",
+      security_type: Map.get(params, "security_type") || Map.get(params, :security_type) || "both"
     }
 
     case WandererApp.RouteBuilderClient.find_closest(payload) do
