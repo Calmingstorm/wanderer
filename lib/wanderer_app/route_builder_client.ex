@@ -22,8 +22,6 @@ defmodule WandererApp.RouteBuilderClient do
           security_type: security_type
         } = payload
       ) do
-    url = "#{WandererApp.Env.custom_route_base_url()}/route/findClosest"
-
     routes_settings = Map.get(payload, :routes_settings, %{})
     destinations = destinations_for(type, security_type, routes_settings)
 
@@ -36,17 +34,28 @@ defmodule WandererApp.RouteBuilderClient do
       count: count || 1
     }
 
-    case Req.post(url, Keyword.merge([json: payload], @timeout_opts)) do
-      {:ok, %{status: status, body: body}} when status in [200, 201] ->
-        {:ok, body}
+    case WandererApp.Env.custom_route_base_url() do
+      base_url when is_binary(base_url) ->
+        url = "#{base_url}/route/findClosest"
 
-      {:ok, %{status: status, body: body}} ->
-        Logger.warning("[RouteBuilderClient] Unexpected status: #{status}")
-        {:error, {:unexpected_status, status, body}}
+        case Req.post(url, Keyword.merge([json: payload], @timeout_opts)) do
+          {:ok, %{status: status, body: body}} when status in [200, 201] and is_list(body) ->
+            {:ok, body}
 
-      {:error, reason} ->
-        Logger.error("[RouteBuilderClient] Request failed: #{inspect(reason)}")
-        {:error, reason}
+          {:ok, %{status: status}} when status in [200, 201] ->
+            {:error, :invalid_route_response}
+
+          {:ok, %{status: status, body: body}} ->
+            Logger.warning("[RouteBuilderClient] Unexpected status: #{status}")
+            {:error, {:unexpected_status, status, body}}
+
+          {:error, reason} ->
+            Logger.error("[RouteBuilderClient] Request failed: #{inspect(reason)}")
+            {:error, reason}
+        end
+
+      nil ->
+        WandererApp.Map.LocalRouteBuilder.find_closest(payload)
     end
   end
 

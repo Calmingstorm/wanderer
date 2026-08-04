@@ -57,48 +57,34 @@ defmodule WandererApp.Esi.ApiClient do
           @character_tracking_pool
         )
 
-  def get_routes_custom(hubs, origin, params),
-    do:
-      do_post(
-        "#{get_custom_route_base_url()}/route/multiple",
-        [
-          json: %{
-            origin: origin,
-            destinations: hubs,
-            flag: params.flag,
-            connections: params.connections,
-            avoid: params.avoid
-          }
-        ]
-        |> Keyword.merge(@timeout_opts)
-      )
+  def get_routes_custom(hubs, origin, params) do
+    case get_custom_route_base_url() do
+      base_url when is_binary(base_url) ->
+        case do_post(
+               "#{base_url}/route/multiple",
+               [
+                 json: %{
+                   origin: origin,
+                   destinations: hubs,
+                   flag: params.flag,
+                   connections: params.connections,
+                   avoid: params.avoid
+                 }
+               ]
+               |> Keyword.merge(@timeout_opts)
+             ) do
+          {:ok, routes} when is_list(routes) -> {:ok, routes}
+          {:ok, _invalid_body} -> {:error, :invalid_route_response}
+          error -> error
+        end
 
-  def get_routes_eve(hubs, origin, _params, _opts),
-    do:
-      {:ok,
-       hubs
-       |> Task.async_stream(
-         fn destination ->
-           %{
-             "origin" => origin,
-             "destination" => destination,
-             "systems" => [],
-             "success" => false
-           }
+      nil ->
+        WandererApp.Map.LocalRouteBuilder.routes(hubs, origin, params)
+    end
+  end
 
-           # do_get_routes_eve(origin, destination, params, opts)
-         end,
-         max_concurrency: System.schedulers_online() * 4,
-         timeout: :timer.seconds(30),
-         on_timeout: :kill_task
-       )
-       |> Enum.map(fn result ->
-         case result do
-           {:ok, val} -> val
-           {:error, error} -> {:error, error}
-           _ -> {:error, :failed}
-         end
-       end)}
+  def get_routes_eve(hubs, origin, params, _opts),
+    do: WandererApp.Map.LocalRouteBuilder.routes(hubs, origin, params)
 
   @decorate cacheable(
               cache: Cache,
