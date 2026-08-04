@@ -97,6 +97,37 @@ describe('getSignaturePasteLocationWarning', () => {
     expect(getSignaturePasteLocationWarning({ ...baseInput, userCharacters: [] })).toBeNull();
   });
 
+  it('does not throw while selected-system static data is still hydrating', () => {
+    const partialSystem = {
+      id: 'map-hydrating',
+      name: null,
+      temporary_name: null,
+    } as SolarSystemRawType;
+
+    expect(
+      getSignaturePasteLocationWarning({
+        ...baseInput,
+        selectedMapSystemId: partialSystem.id,
+        systems: [...systems, partialSystem],
+      }),
+    ).toBeNull();
+  });
+
+  it('ignores other partially hydrated systems when finding the character location', () => {
+    const partialSystem = {
+      id: 'map-hydrating',
+      name: null,
+      temporary_name: null,
+    } as SolarSystemRawType;
+
+    expect(
+      getSignaturePasteLocationWarning({
+        ...baseInput,
+        systems: [partialSystem, ...systems],
+      })?.currentSystemName,
+    ).toBe('Home (J100001)');
+  });
+
   it('does not warn when location or selected-system data is unavailable', () => {
     expect(
       getSignaturePasteLocationWarning({
