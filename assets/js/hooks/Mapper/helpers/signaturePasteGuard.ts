@@ -20,9 +20,10 @@ type SignaturePasteGuardInput = {
 };
 
 const getDisplayName = (system: SolarSystemRawType | undefined, fallbackSolarSystemId: number): string => {
-  if (!system) return `solar system ${fallbackSolarSystemId}`;
+  const staticInfo = system?.system_static_info;
+  if (!system || !staticInfo) return `solar system ${fallbackSolarSystemId}`;
 
-  const canonicalName = system.system_static_info.solar_system_name;
+  const canonicalName = staticInfo.solar_system_name;
   const alias = system.temporary_name || system.name;
 
   if (alias && alias !== canonicalName) {
@@ -94,10 +95,10 @@ export const getSignaturePasteLocationWarning = ({
 
   const currentSolarSystemId = activeCharacter.location.solar_system_id;
 
-  const selectedSolarSystemId = selectedSystem.system_static_info.solar_system_id;
-  if (selectedSolarSystemId === currentSolarSystemId) return null;
+  const selectedSolarSystemId = selectedSystem.system_static_info?.solar_system_id;
+  if (selectedSolarSystemId == null || selectedSolarSystemId === currentSolarSystemId) return null;
 
-  const currentSystem = systems.find(system => system.system_static_info.solar_system_id === currentSolarSystemId);
+  const currentSystem = systems.find(system => system.system_static_info?.solar_system_id === currentSolarSystemId);
 
   return {
     activeCharacterName: activeCharacter.name,
