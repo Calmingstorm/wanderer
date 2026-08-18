@@ -206,6 +206,9 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
     end
   end
 
+  def handle_server_event(event, socket),
+    do: MapCoreEventHandler.handle_server_event(event, socket)
+
   @doc false
   def delete_connections_for_removal?(mode, map_user_settings, user_permissions) do
     can_delete_connection? = Map.get(user_permissions, :delete_connection, false)
@@ -226,9 +229,6 @@ defmodule WandererAppWeb.MapSignaturesEventHandler do
 
     requested? and can_delete_connection?
   end
-
-  def handle_server_event(event, socket),
-    do: MapCoreEventHandler.handle_server_event(event, socket)
 
   def handle_ui_event(
         "load_signatures",
