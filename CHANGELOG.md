@@ -2,6 +2,15 @@
 
 <!-- changelog -->
 
+## [v1.102.0](https://github.com/wanderer-industries/wanderer/compare/v1.101.14...v1.102.0) (2026-08-19)
+
+
+
+
+### Features:
+
+* add keyboard navigation to system search
+
 ## [v1.101.14](https://github.com/wanderer-industries/wanderer/compare/v1.101.13...v1.101.14) (2026-08-18)
 
 
