@@ -1,6 +1,6 @@
 import classes from './TopSearch.module.scss';
 import { Sidebar } from 'primereact/sidebar';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMapRootState } from '@/hooks/Mapper/mapRootProvider';
 import { VirtualScroller, VirtualScrollerTemplateOptions } from 'primereact/virtualscroller';
 import clsx from 'clsx';
@@ -25,13 +25,22 @@ import { emitMapEvent } from '@/hooks/Mapper/events';
 import { LocalCounter } from '@/hooks/Mapper/components/map/components/LocalCounter';
 import { getLocalCharacters } from '@/hooks/Mapper/components/hooks/useLocalCounter.ts';
 import { PrimeIcons } from 'primereact/api';
+import { getSearchKeyboardAction } from './topSearchKeyboard';
 
 type CompiledSystem = {
   dynamic: SolarSystemRawType;
   static: SolarSystemStaticInfoRaw | undefined;
 };
 
-const useItemTemplate = () => {
+const getSearchOptionId = (systemId: string) => `top-search-option-${systemId}`;
+
+interface ItemTemplateOptions {
+  activeIndex: number;
+  onSelect: (system: CompiledSystem) => void;
+  onActiveIndexChange: (index: number) => void;
+}
+
+const useItemTemplate = ({ activeIndex, onSelect, onActiveIndexChange }: ItemTemplateOptions) => {
   const {
     data: { wormholesData, characters, userCharacters, hubs },
   } = useMapRootState();
@@ -67,12 +76,7 @@ const useItemTemplate = () => {
       const hasOfflineUserCharacters = offlineCharactersInSystem.some(x => userCharacters.includes(x.eve_id));
       const offlineCharacters = getLocalCharacters({ charactersInSystem: offlineCharactersInSystem, userCharacters });
 
-      const handleSelect = () => {
-        emitMapEvent({
-          name: Commands.centerSystem,
-          data: solar_system_id.toString(),
-        });
-      };
+      const handleSelect = () => onSelect(item);
 
       const sortedStatics = sortWHClasses(wormholesData, statics);
       const isWH = isWormholeSpace(system_class);
@@ -94,6 +98,11 @@ const useItemTemplate = () => {
             regionClass && classes[regionClass],
             item.dynamic.status !== undefined && classes[STATUS_CLASSES[item.dynamic.status]],
           )}
+          id={getSearchOptionId(item.dynamic.id)}
+          role="option"
+          aria-selected={options.index === activeIndex}
+          data-active={options.index === activeIndex || undefined}
+          onMouseEnter={() => onActiveIndexChange(options.index)}
           onClick={handleSelect}
         >
           <div className={clsx('w-full')}>
@@ -189,7 +198,7 @@ const useItemTemplate = () => {
         </div>
       );
     },
-    [characters, hubs, userCharacters, wormholesData],
+    [activeIndex, characters, hubs, onActiveIndexChange, onSelect, userCharacters, wormholesData],
   );
 };
 
@@ -200,15 +209,15 @@ export interface TopSearchSidebarProps {
 
 export const TopSearchSidebar = ({ show, onHide }: TopSearchSidebarProps) => {
   const [searchVal, setSearchVal] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
 
   // eslint-disable-next-line
-  const inputRef = useRef<any>();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const virtualScrollerRef = useRef<VirtualScroller>(null);
 
   const {
     data: { systems },
   } = useMapRootState();
-
-  const itemTemplate = useItemTemplate();
 
   const systemsCompiled = useMemo<CompiledSystem[]>(() => {
     return systems.map(x => ({
@@ -219,6 +228,17 @@ export const TopSearchSidebar = ({ show, onHide }: TopSearchSidebarProps) => {
 
   const onShow = useCallback(() => {
     inputRef.current?.focus();
+  }, []);
+
+  const selectSystem = useCallback((system: CompiledSystem) => {
+    if (!system.static) {
+      return;
+    }
+
+    emitMapEvent({
+      name: Commands.centerSystem,
+      data: system.static.solar_system_id.toString(),
+    });
   }, []);
 
   const filtered = useMemo(() => {
@@ -266,6 +286,54 @@ export const TopSearchSidebar = ({ show, onHide }: TopSearchSidebarProps) => {
     return out;
   }, [searchVal, systemsCompiled]);
 
+  useEffect(() => {
+    const nextIndex = filtered.length > 0 ? 0 : -1;
+    setActiveIndex(nextIndex);
+
+    if (nextIndex >= 0) {
+      virtualScrollerRef.current?.scrollInView(nextIndex, 'to-start', 'auto');
+    }
+  }, [filtered]);
+
+  const handleSearchKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      const action = getSearchKeyboardAction({
+        key: event.key,
+        activeIndex,
+        itemCount: filtered.length,
+      });
+
+      if (action.type === 'none') {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (action.type === 'move') {
+        setActiveIndex(action.index);
+        virtualScrollerRef.current?.scrollInView(action.index, undefined, 'auto');
+        return;
+      }
+
+      if (action.type === 'select') {
+        selectSystem(filtered[action.index]);
+        return;
+      }
+
+      onHide();
+    },
+    [activeIndex, filtered, onHide, selectSystem],
+  );
+
+  const itemTemplate = useItemTemplate({
+    activeIndex,
+    onSelect: selectSystem,
+    onActiveIndexChange: setActiveIndex,
+  });
+
+  const activeDescendant =
+    activeIndex >= 0 && activeIndex < filtered.length ? getSearchOptionId(filtered[activeIndex].dynamic.id) : undefined;
+
   return (
     <Sidebar
       className={clsx(classes.Sidebar, '!p-[0px] w-[500px] max-w-[calc(100vw-1rem)]')}
@@ -295,17 +363,31 @@ export const TopSearchSidebar = ({ show, onHide }: TopSearchSidebarProps) => {
             <InputText
               id="label"
               className="w-full"
-              aria-describedby="label"
+              aria-describedby="top-search-keyboard-help"
+              aria-controls="top-search-results"
+              aria-activedescendant={activeDescendant}
+              aria-autocomplete="list"
+              aria-expanded={show}
+              role="combobox"
               ref={inputRef}
               autoComplete="off"
               value={searchVal}
               placeholder="Search systems, aliases, or chain labels"
               onChange={e => setSearchVal(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
             />
           </IconField>
+          <span id="top-search-keyboard-help" className="sr-only">
+            Use the up and down arrow keys to choose a system, Enter to center it, or Escape to close search.
+          </span>
         </div>
 
         <VirtualScroller
+          ref={virtualScrollerRef}
+          id="top-search-results"
+          pt={{
+            root: { role: 'listbox', 'aria-label': 'Matching systems' },
+          }}
           items={filtered}
           itemSize={48}
           itemTemplate={itemTemplate}

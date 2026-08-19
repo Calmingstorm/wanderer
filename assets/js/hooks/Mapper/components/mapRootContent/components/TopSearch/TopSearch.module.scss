@@ -24,6 +24,11 @@
   position: relative;
   overflow: hidden;
 
+  &[data-active='true'] {
+    background-color: rgb(41 37 36 / 0.7);
+    box-shadow: inset 3px 0 0 var(--primary-color);
+  }
+
   &.Pochven,
   &.Mataria,
   &.Amarria,
